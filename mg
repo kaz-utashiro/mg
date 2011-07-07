@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2005 Kazumasa Utashiro <utashiro@srekcah.org>
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.3 2005/01/10 11:44:03 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.4 2005/05/25 02:52:32 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -98,10 +98,13 @@ my @opts;
 	'exclude:@pattern:specify exclude pattern or subroutine',
 	'include:@pattern:oposit to --exclude',
 	'require:file:require perl code',
-	'file:@file:target files (repeatable)',
+	'file:@file:specify target files (repeatable)',
+	'glob:@glob:glob target files (repeatable)',
+	'chdir:dir:change directory',
 );
 my @optspec = &MkoptsLong(@opts);
 my @opt_file;
+my @opt_glob;
 my @opt_exclude;
 my @opt_include;
 
@@ -174,9 +177,13 @@ sub usage {
 
 &eval(join(' ', grep($_ = "\$db_$_++;", split(//, $opt_d))), $opt_d =~ /e/);
 
-if ($db_m) {
+if ($db_o) {
     warn "\@ARGV = @SAVEDARGV\n";
     warn "\@optspec = @optspec\n";
+}
+
+if (defined $opt_chdir) {
+    chdir $opt_chdir or die "$!: $opt_chdir\n";
 }
 
 ## character code option shortcuts
@@ -225,7 +232,7 @@ $rawdelim = quotemeta($delim);
 $in  = join('|', (@in  = ('\e\$\@', '\e\$B')));
 $out = join('|', (@out = ('\e\(J',  '\e\(B')));
 $shiftcode   = '(' . join('|', @in, @out) . ')';
-$optionalseq = '(' . join('|', @in, @out, $opt_C || '\s'). ')*';
+$optionalseq = '(?:' . join('|', @in, @out, $opt_C || '\s'). ')*';
 $rawoptionalseq = quotemeta($optionalseq);
 
 defined($opt_j) && ($opt_j eq 'is') && ($opt_j = 'jis');
@@ -468,6 +475,11 @@ if (@opt_include or @opt_exclude) {
     }
 }
 
+open(SAVESTDIN, '<&STDIN');
+unshift(@ARGV, @opt_file) if @opt_file;
+unshift(@ARGV, map glob, @opt_glob) if @opt_glob;
+push(@ARGV, '-') unless @ARGV || $opt_S;
+
 $hash_t = 1;
 $bin = $opt_B;
 $dirend = "\0\0";
@@ -476,10 +488,6 @@ $NL = $opt_a ? "\377#+%&^=(*-!" x 2 : "\n";
 $showfname = $opt_l || !$opt_h && (@ARGV > 1 || $opt_R || $opt_S);
 $/ = !defined($opt_0) ? undef : $opt_0 =~ /^0+$/ ? '' : pack('C', oct($opt_0));
 $* = 1;
-
-open(SAVESTDIN, '<&STDIN');
-unshift(@ARGV, @opt_file) if @opt_file;
-push(@ARGV, '-') unless @ARGV || $opt_S;
 
 sub open_nextfile {
     local($/, $file) = ("\n");
@@ -1178,6 +1186,7 @@ sub UsageLong {
 	    next;
 	}
 	next if $hide{$name};
+	$arg =~ s/^\@//;
 	$arg{$name} = $arg;
 	$desc{$name} = $desc;
 	if ($desc && $width < (length($name) + length($arg))) {
@@ -1364,7 +1373,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.3 2005/01/10 11:44:03 utashiro Exp $
+.XX $Id: mg,v 5.0.1.4 2005/05/25 02:52:32 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1563,6 +1572,7 @@ flag to \-d option.
 	c: count of processing files
 	s: statistic information
 	m: misc debug information
+	o: option related information
 	p: run `ps' command before termination (on Unix)
 
 .fi
@@ -2048,7 +2058,8 @@ surrounding lines are displayed by \-c or \-o option.  Use
 .\"------------------------------------------------------------
 .SH AUTHOR
 .nf
-Kazumasa Utashiro <utashiro@srekcah.org>
+Kazumasa Utashiro
+http://srekcah.org/~utashiro/contact.html
 .fi
 .\"------------------------------------------------------------
 .SH "SEE ALSO"
