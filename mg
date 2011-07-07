@@ -14,7 +14,7 @@
 ;# Software Research Associates, Inc.
 ;#
 ;# Original: Mar 29 1991
-;; $rcsid = q$Id: mg,v 5.0 2001/09/14 12:56:35 utashiro Exp $;
+;; $rcsid = q$Id: mg,v 5.0.1.1 2001/09/14 14:59:42 utashiro Exp $;
 ;#
 ;# EXAMPLES:
 ;#	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -37,6 +37,11 @@
 ;# perl4 on BSD/OS 3.[01] has wrong $] value, oh my...
 ;#
 $perl4 = ($] < 5) || (40000 < $]);
+
+if ($perl4) {
+    die "Sorry, this version of mg no longer support perl4.\n" .
+	"Use version 2 seriese instead.\n";
+}
 
 ;#
 ;# Match in 5.6 or later supports matched offset list: @-, @+
@@ -96,6 +101,7 @@ require('getopts.pl');
 	'd:flags:display info (f:file d:dir c:count m:misc s:stat)',
 	'-:IHYUt:',
 	't::-T takes only ascii files',
+	'k::remember passphrase for PGP key',
 	'I::ignore error', 'H::manual', 'U::show unused opts',
 );
 $opts = &Mkopts(@opts);
@@ -307,6 +313,15 @@ if ($opt_T) {
 
 push(@filter, 's/\.Z$//', 'zcat', 's/\.g?z$//', 'gunzip -c') unless $opt_Z;
 push(@filter, split(':', $opt_z)) if $opt_z;
+
+##
+## Push PGP decrypt command for input filter.
+## Currently pgp version 2 is hard coded, but it have to be fixed soon. XXX
+##
+if (defined $opt_k and not defined $opt_z) {
+    push(@filter, 'pgp -f');
+}
+
 for ($_ = ''; @_ = splice(@filter, 0, 2); ) {
     unshift(@_, '1') if @_ == 1;
     $_[0] =~ /^\s*unlink\s*$/ && die "It's too dangerous!! \"$_[0]\"\n";
@@ -342,6 +357,33 @@ if ($opt_x) {			# define input filter
 if ($opt_X) {			# open output filter
     open(STDOUT, "|$opt_X") || die "$opt_X: $!\n";
     $| = 1;
+}
+
+if ($opt_k) {
+    use Fcntl;
+
+    my $passfile = "/tmp/invisible_passfile_$$";
+    my $passphrase;
+    
+    sysopen(PGPPASS, $passfile, O_RDWR|O_CREAT|O_EXCL, 0000)
+	or die "sysopen $passfile: $!\n";
+    unlink($passfile)
+	or die "can't unlink $passfile: $!\n";
+    fcntl(PGPPASS, F_SETFD, 0)
+	or die "can't fcntl F_SETFD: $!\n";
+
+    print STDERR "Enter PGP Passphrase> ";
+    system "stty -echo";
+    $passphrase = <STDIN>;
+    system "stty echo";
+    print STDERR "\n";
+
+    syswrite(PGPPASS, $passphrase, length $passphrase);
+    $passphrase =~ s/./\0/g;
+    $passphrase = "";
+    seek(PGPPASS, 0, 0);
+
+    $ENV{PGPPASSFD} = fileno(PGPPASS);
 }
 
 $hash_t = 1;
@@ -392,6 +434,7 @@ sub open_nextfile {
 	    };
 	}
 	if (defined(&filter) && ($filter = &filter($file))) {
+	    seek(PGPPASS, 0, 0) if fileno(PGPPASS);
 	    open(STDIN, '-|') || exec($filter) || die "$filter: $!\n";
 	}
 	if ($filter && $db_p) {
@@ -499,6 +542,11 @@ if ($db_s) {
 }
 
 close STDOUT;
+
+if ($db_p) {
+    open(STDOUT, ">&STDERR");
+    system "ps -l -p $$";
+}
 
 if ($db_p) {
     open(STDOUT, ">&STDERR");
@@ -845,7 +893,7 @@ sub min { $_[ ($_[$[] > $_[$[+1]) + $[ ]; }
 ;#------------------------------------------------------------
 ;# usage.pl: make a string for usage line.
 ;#
-;# $Id: mg,v 5.0 2001/09/14 12:56:35 utashiro Exp $
+;# $Id: mg,v 5.0.1.1 2001/09/14 14:59:42 utashiro Exp $
 ;#
 ;# Syntax:
 ;# &Usage($command, $option, $trailer, @arglist);
@@ -927,7 +975,7 @@ sub Usage {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0 2001/09/14 12:56:35 utashiro Exp $
+.XX $Id: mg,v 5.0.1.1 2001/09/14 14:59:42 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1021,6 +1069,13 @@ respectively and each file contained in the archive will be
 the subject of search.  Option \-A disables this feature
 too.  File name is shown as ``{archive}file''.
 .PP
+.B [HANDLE PGP ENCRYPTED FILE]
+\fIMg\fP can search string from PGP-encrypted file.  It asks PGP
+passphrase only once, and it is inherited to pgp decrypting
+subprocesses.  Use \-k option when you specify pgp file for search.
+Although many people probably want automatic execution of decription
+process depending file contents, it is not supported yet.
+.PP
 .B [BUFFERING POLICY]
 \fIMg\fP reads some amount of data at once, and the last
 portion of the chunk will be searched again with next chunk
@@ -1080,6 +1135,8 @@ flag to \-d option.
 	c: count of processing files
 	s: statistic information
 	m: misc debug information
+
+	p: run `ps' command before termination (on Unix)
 
 	p: run `ps' command before termination (on Unix)
 
