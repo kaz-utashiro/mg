@@ -1,4 +1,4 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 'di ';
 'ds 00 \"';
 'ig 00 ';
@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2005 Kazumasa Utashiro <utashiro@srekcah.org>
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.5 2009/11/18 10:49:03 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.6 2011/04/13 05:05:54 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -174,7 +174,7 @@ sub usage {
 	&UsageLong($0, \@optspec, "pattern [ file ... ]", @opts);
     print "usage: mg [ -options ] pattern [ file... ]\n", $option;
 
-    if (defined %user_option) {
+    if (%user_option) {
 	print "\nUser defined options:\n";
 	foreach my $k (sort keys %user_option) {
 	    printf "\t-:%-14s %s\n", $k, join(' ', @{$user_option{$k}});
@@ -297,8 +297,7 @@ if ($opt_f) {
     $opt_p = join('|', grep($_ = &mkpat($_), @opt_f));
 } elsif (defined $opt_x) {
     defined($opt_xp = $opt_p || shift(@ARGV)) || &usage;
-} elsif (defined $opt_xp ||
-	 defined @opt_and || defined @opt_or || defined @opt_not) {
+} elsif (defined $opt_xp || @opt_and || @opt_or || @opt_not) {
     ;
 } else {
     defined $opt_p || defined($opt_p = shift(@ARGV)) || &usage;
@@ -362,8 +361,8 @@ if ($opt_1) {
 }
 &eval("sub search {
     local(*_, *array) = \@_;
-    return /\$opt_p/o if \@_ < 2;
-    $check (/\$opt_p/o$_g) {
+    return /\$opt_p/smo if \@_ < 2;
+    $check (/\$opt_p/smo$_g) {
 	push(\@array, $offset, $length);
     }
 }");
@@ -520,7 +519,6 @@ $p_all = !($opt_m || $opt_M);
 $NL = $opt_a ? "\377#+%&^=(*-!" x 2 : "\n";
 $showfname = $opt_H || $opt_l || !$opt_h && (@ARGV > 1 || $opt_R || $opt_S);
 $/ = !defined($opt_0) ? undef : $opt_0 =~ /^0+$/ ? '' : pack('C', oct($opt_0));
-$* = 1;
 
 sub open_nextfile {
     local($/, $file) = ("\n");
@@ -876,7 +874,7 @@ sub grep {
 	my @select;
 	if ($arg =~ /^&([^=]*)(?:=(.*))?/) {
 	    my($func, @arg) = ($1, $2);
-	    @select = do $func(@arg);
+	    @select = &$func(@arg);
 	}
 	else {
 	    @select = pattern_list($arg);
@@ -888,7 +886,7 @@ sub grep {
 		my($from, $to) = splice(@hit, 0, 2);
 		my $func = "out";
 		if (defined(&{$func})) {
-		    do $func(substr($_, $from, $to - $from));
+		    &$func(substr($_, $from, $to - $from));
 		} else {
 		    print substr($_, $from, $to - $from), "\n";
 		}
@@ -1011,11 +1009,11 @@ sub xsearch {
     my $re;
     use vars qw{$rs $opt_o};
     if (defined $rs) {
-	$re = qr/(?s).*?(?:$rs|\Z)/;
+	$re = qr/(?ms).*?(?:$rs|\Z)/;
     } elsif ($opt_o) {
-	$re = qr/(?s).*?(?:\n\n+|\Z)/;
+	$re = qr/(?ms).*?(?:\n\n+|\Z)/;
     } else {
-	$re = qr/(?s).*?(?:\n|\Z)/;
+	$re = qr/(?ms).*?(?:\n|\Z)/;
     }
     while (m/$re/g) {
 	push(@blocks, [$-[0], $+[0]]);
@@ -1575,7 +1573,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.5 2009/11/18 10:49:03 utashiro Exp $
+.XX $Id: mg,v 5.0.1.6 2011/04/13 05:05:54 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
