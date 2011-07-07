@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2005 Kazumasa Utashiro <utashiro@srekcah.org>
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.4 2005/05/25 02:52:32 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.5 2009/11/18 10:49:03 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -27,7 +27,7 @@
 ## DISCLAIMED.
 ##
 
-require 5.005;
+require 5.006;
 
 use File::stat;
 my $file_st;	# global File::stat object for current processing file
@@ -41,6 +41,7 @@ my @opts;
 	'n::print line number',
 	'N::print byte offset',
 	'h::do not display filenames',
+	'H::display filenames',
 	'w::word sensitive (foo becomes \\bfoo\\b)',
 	'v:pattern:skip the line if matched with the pattern',
 	'e::use pattern as regular expression (space is special)',
@@ -70,25 +71,27 @@ my @opts;
 	'm::print only line across matching',
 	'M::print only multiple matched line',
 	'f:file:file contains search pattern',
+	'x::extended pattern interpretation',
 	'p:pattern:specify search pattern',
 	'A::do not archive search',
 	'Z::do not uncompress automatically',
-	'J:string:convert newline in matched string to specified string',
-	'0:digits:record separator by octal. only first record is searched',
+	'J:string:convert newline in matched string to the string',
+	'0:digits:record separator by octal and single record search',
 	'W::slurp whole file contents at once',
 	'G:#[,#]:maxreadsize and keepsize',
 	'1::print first match only',
 	'j:code:specify Japanese code of file (jis, sjis, euc)',
 	'y::yield to use JIS X0208 alphabet character',
-	'z:filter:set filter command',
-	'x:exp:input filter (&mime: RFC1342 decoding)',
-	'X:filter:output filter command',
 	'd:flags:display info (f:file d:dir c:count m:misc s:stat)',
-	'-:IHYUt:',
+	'-:IYUt:',
 	't::-T takes only ascii files',
-	'I::ignore error', 'H::manual', 'U::show unused opts',
+	'I::ignore error', 'U::show unused opts',
+	'man::show manual page',
+	'if:filter:set filter command',
+	'of:filter:output filter command',
+	'prep:exp:pre-processor function (&mime: RFC1342 decoding)',
 	'body::search only from message body',
-	'pgp::remember passphrase and use it for PGP encrypted file',
+	'pgp::remember passphrase and use it for PGP processing',
 	'pgppass:phrase:pgp passphrase',
 	'pcode:code:set process character code',
 	'euc::shortcut for --pcode euc',
@@ -101,12 +104,19 @@ my @opts;
 	'file:@file:specify target files (repeatable)',
 	'glob:@glob:glob target files (repeatable)',
 	'chdir:dir:change directory',
+	'and:@pattern:AND patterns (repeatable)',
+	'or:@pattern:OR patterns (repeatable)',
+	'not:@pattern:NOT patterns (repeatable)',
+	'xp:pattern:extended pattern',
+	'block::experimental block mode',
+	'mod:module:experimental include module',
 );
 my @optspec = &MkoptsLong(@opts);
 my @opt_file;
 my @opt_glob;
 my @opt_exclude;
 my @opt_include;
+my @opt_and, @opt_or;
 
 ##
 ## User customizable option handling in ~/.mgrc
@@ -136,6 +146,8 @@ if (open(MGRC, "$ENV{HOME}/.mgrc")) {
 	    }
 	    elsif ($arg0 eq 'define') {
 		set_option($arg1, $rest);
+	    } else {
+		warn ".mgrc: parse error: $_";
 	    }
 	}
     }
@@ -182,6 +194,15 @@ if ($db_o) {
     warn "\@optspec = @optspec\n";
 }
 
+
+if ($opt_mod) {
+    eval "use Mg::$opt_mod";
+    if ($@) {
+	die "$class: Module error ($@)\n";
+    }
+}
+
+
 if (defined $opt_chdir) {
     chdir $opt_chdir or die "$!: $opt_chdir\n";
 }
@@ -192,12 +213,12 @@ $opt_pcode = "jis" if $opt_jis;
 $opt_pcode = "euc" if $opt_euc;
 $opt_pcode = "sjis" if $opt_sjis;
 if ($opt_pcode) {
-    $opt_z = sprintf("nkf -%s", substr($opt_pcode, 0, 1));
+    $opt_if = sprintf("nkf -%s", substr($opt_pcode, 0, 1));
     $opt_j = $opt_pcode;
 }
 
 ## --mime shortcut
-$opt_x = '&mime' if $opt_mime;
+$opt_prep = '&mime' if $opt_mime;
 
 ## show unused option characters
 if ($opt_U) {
@@ -213,7 +234,7 @@ if ($opt_U) {
 }
 
 ## show man pages
-if ($opt_H) {
+if ($opt_man) {
     exec "nroff -man $0 |" . ($ENV{'PAGER'} || 'more') . ' -s';
     die;
 }
@@ -265,7 +286,7 @@ sub mkpat {
 	$p .= $_;
     }
     $p =~ s/($rawdelim|$rawoptionalseq)+$//;
-    length($p) ? $p : undef;
+    length($p) ? ($opt_i ? "(?i)$p" : $p) : undef;
 }
 
 ## make search pattern
@@ -274,9 +295,42 @@ if ($opt_f) {
     @opt_f = grep { !/^#/ } @opt_f;
     for (@opt_f) { s/\n//; }
     $opt_p = join('|', grep($_ = &mkpat($_), @opt_f));
+} elsif (defined $opt_x) {
+    defined($opt_xp = $opt_p || shift(@ARGV)) || &usage;
+} elsif (defined $opt_xp ||
+	 defined @opt_and || defined @opt_or || defined @opt_not) {
+    ;
 } else {
     defined $opt_p || defined($opt_p = shift(@ARGV)) || &usage;
     $opt_p = &mkpat($opt_p);
+}
+
+## --xp, --and, --or, --not handling
+if (defined $opt_xp) {
+    #for my $p (shellwords($opt_xp)) {
+    for my $p (split(' ', $opt_xp)) {
+	next if $p eq "";
+	if ($p =~ s/^-//) {
+	    push(@opt_not, $p);
+	} elsif ($p =~ s/^\?//) {
+	    push(@opt_or, $p);
+	} elsif ($p =~ s/^\+// or 1) {
+	    push(@opt_and, $p);
+	}
+    }
+}
+my @xpattern;
+for my $p (@opt_and) {
+    $p = &mkpat($p);
+    push(@xpattern, [1, qr/$p/]);
+}
+if (defined @opt_or) {
+    my $p = join('|', map { &mkpat($_) } @opt_or);
+    push(@xpattern, [1, qr/$p/]);
+}
+if (defined @opt_not) {
+    my $p = join('|', map { &mkpat($_) } @opt_not);
+    push(@xpattern, [0, qr/$p/]);
 }
 
 ($opt_v, $opt_r) = (&mkpat($opt_v), &mkpat($opt_r));
@@ -294,31 +348,11 @@ if (defined($jis)) {
 ##
 ## make search functions
 ##
-if ($] >= 5.006) {
-    $offset = '$-[0]';
-    $length = '$+[0] - $-[0]';
-}
-else {
-    ##
-    ## Perl5 has a function pos() which enable to get last matched
-    ## position, so we can avoid to use $` and $& to eliminate the cost of
-    ## using those variables.  To do that, whole pattern has to be caught
-    ## by $1, which requires the pattern encloses by parentheses.
-    ##
-    ## However, enclosing the whole pattern by parentheses confuses the use
-    ## of other parentheses in the original regular expression, because
-    ## the order of parantheses incremented by one.  Following code fix
-    ## the back-reference number in the form of \n.  I doubt this code
-    ## always works fine. (XXX)
-    ##
-    $opt_p =~ s/\\([1-9])\b/'\\' . ($1+1)/ge;
-    $opt_p = "($opt_p)";
-    $offset = 'pos($_) - length($1)';
-    $length = 'length($1)';
-}
-if ($opt_i) {
-    $opt_p = "(?i)$opt_p";
-}
+$offset = '$-[0]';
+$length = '$+[0] - $-[0]';
+#if ($opt_i) {
+#    $opt_p = "(?i)$opt_p";
+#}
 if ($opt_1) {
     $check = 'if';
     $_g = '';
@@ -417,8 +451,8 @@ if ($opt_pgp) {
 unless ($opt_Z) {
     push(@filter, 's/\.Z$//', 'zcat', 's/\.g?z$//', 'gunzip -c');
 }
-if ($opt_z) {
-    push(@filter, split(':', $opt_z));
+if ($opt_if) {
+    push(@filter, split(':', $opt_if));
 }
 for ($_ = ''; @_ = splice(@filter, 0, 2); ) {
     unshift(@_, '1') if @_ == 1;
@@ -434,8 +468,7 @@ for ($_ = ''; @_ = splice(@filter, 0, 2); ) {
 }') if $_;
 
 %zinfo = ('lzh', 'lha pq,   lha l,     \d\d:\d\d\s+(.+)',
-	  'zip', 'unzip -p, unzip -l,  \d\d:\d\d\s+(.+)',
-	  'zoo', 'zoo xpq,  zoo -list, \d\d:\d\d:\S+\s+\S+\s+(.+)');
+	  'zip', 'unzip -p, unzip -l,  \d\d:\d\d\s+(.+)');
 $zsuffix = join('|', keys %zinfo);
 sub zfiles {
     local($z, @z, *Z) = @_;	# Z will be closed on return
@@ -449,15 +482,15 @@ if ($opt_require) {
     require $opt_require;
 }
 
-if ($opt_x) {			# define input filter
+if ($opt_prep) {			# define input filter
     # do require/use once
-    while ($opt_x =~ s/((require|use)\b[^;]+;?)//) {
+    while ($opt_prep =~ s/((require|use)\b[^;]+;?)//) {
 	&eval($1);
     }
-    &eval("sub input_filter { $opt_x }");
+    &eval("sub input_filter { $opt_prep }");
 }
-if ($opt_X) {			# open output filter
-    open(STDOUT, "|$opt_X") || die "$opt_X: $!\n";
+if ($opt_of) {			# open output filter
+    open(STDOUT, "|$opt_of") || die "$opt_of: $!\n";
     $| = 1;
 }
 
@@ -476,8 +509,8 @@ if (@opt_include or @opt_exclude) {
 }
 
 open(SAVESTDIN, '<&STDIN');
-unshift(@ARGV, @opt_file) if @opt_file;
 unshift(@ARGV, map glob, @opt_glob) if @opt_glob;
+unshift(@ARGV, @opt_file) if @opt_file;
 push(@ARGV, '-') unless @ARGV || $opt_S;
 
 $hash_t = 1;
@@ -485,7 +518,7 @@ $bin = $opt_B;
 $dirend = "\0\0";
 $p_all = !($opt_m || $opt_M);
 $NL = $opt_a ? "\377#+%&^=(*-!" x 2 : "\n";
-$showfname = $opt_l || !$opt_h && (@ARGV > 1 || $opt_R || $opt_S);
+$showfname = $opt_H || $opt_l || !$opt_h && (@ARGV > 1 || $opt_R || $opt_S);
 $/ = !defined($opt_0) ? undef : $opt_0 =~ /^0+$/ ? '' : pack('C', oct($opt_0));
 $* = 1;
 
@@ -524,10 +557,15 @@ sub open_nextfile {
 	    $showfname++ unless $opt_h;
 	    next;
 	}
-	if ($file =~ /({(.+\.($zsuffix))}(.+)$)/o) {		# zip & zoo
+	if (0) {}
+	elsif ($file =~ /^http:\/\//) {
+	    open(STDIN, '-|') || exec("w3m -dump $file") || die "w3m: $!\n";
+	}
+	elsif ($file =~ /({(.+\.($zsuffix))}(.+)$)/o) {		# zip
 	    $file = $1;		# XXX dirty hack for -R
 	    open(STDIN, '-|') || exec("$zext '$2' '$4'") || die "$zext: $!\n";
-	} else {
+	}
+	else {
 	    open(STDIN, $file) || do {
 		$err = 2, &warn("$file: $!\n") unless -l $file; next;
 	    };
@@ -771,12 +809,17 @@ sub grepfile {
 sub pgp_decrypt_msg {
     local(*_) = @_;
     
-    s{^(-----BEGIN\ PGP\ MESSAGE-----
-	.*?
-	-----END\ PGP\ MESSAGE-----)$
-    }{
-	$pgp->decrypt($1);
-    }msgex;
+    if (/[\x00\xff]/) {
+	$_ = $pgp->decrypt($_);
+    }
+    elsif (/-----BEGIN\ PGP\ MESSAGE-----/) {
+	s{^(-----BEGIN\ PGP\ MESSAGE-----
+	    .*?
+	    -----END\ PGP\ MESSAGE-----)$
+        }{
+	    $pgp->decrypt($1);
+	}msgex;
+    }
 }
 
 sub append_data {
@@ -815,7 +858,12 @@ sub grep {
     my($matched, $_matched);
     my $include_sw = 0;
     $#x = $[ - 1;		# @x = ();
-    &search(*_, *x);		# @x = (offset, length, offset, length...);
+
+    if (@xpattern) {
+	&xsearch(*_, \@x);
+    } else {
+	&search(*_, *x);	# @x = (offset, length, offset, length...);
+    }
     splice(@x, 0, 2) while @x && $x[$[] + $offset <= $lastmatch;
     @x = (&max(0, $lastmatch - $offset), 0) if $opt_a && !@x;
     $needinfo = length($file) || $opt_n;
@@ -833,6 +881,22 @@ sub grep {
 	else {
 	    @select = pattern_list($arg);
 	}
+####################
+	if ($opt_block) {
+	    my @hit = hit_block(\@x, \@select, 1);
+	    while (@hit) {
+		my($from, $to) = splice(@hit, 0, 2);
+		my $func = "out";
+		if (defined(&{$func})) {
+		    do $func(substr($_, $from, $to - $from));
+		} else {
+		    print substr($_, $from, $to - $from), "\n";
+		}
+		print "\n";
+	    }
+	    return;
+	}
+####################
 	if ($include_sw or @select) {
 	    @x = select_list(\@x, \@select, $include_sw);
 	}
@@ -934,6 +998,112 @@ sub grep {
     $line += (substr($_, $op) =~ tr/\n/\n/) if $more && ($opt_n || $opt_g);
     $matched;
 }
+sub xsearch {
+    use strict;
+
+    local(*_) = shift;
+    my($xp) = @_;
+
+    ##
+    ## build block list
+    ##
+    my @blocks;
+    my $re;
+    use vars qw{$rs $opt_o};
+    if (defined $rs) {
+	$re = qr/(?s).*?(?:$rs|\Z)/;
+    } elsif ($opt_o) {
+	$re = qr/(?s).*?(?:\n\n+|\Z)/;
+    } else {
+	$re = qr/(?s).*?(?:\n|\Z)/;
+    }
+    while (m/$re/g) {
+	push(@blocks, [$-[0], $+[0]]);
+    }
+
+    ##
+    ## build match result list
+    ##
+    my @result;
+    my $required_count;
+    for (my $i = 0; $i < @xpattern; $i++) {
+	my($required, $regex) = @{$xpattern[$i]};
+	$required_count++ if $required;
+	my $rp = $result[$i] = [];
+	while (/$regex/g) {
+	    push(@$rp, [$-[0], $+[0]]);
+	}
+    }
+
+    ##
+    ## build matched count list for every block
+    ##
+    my(@positive_hit, @negative_hit);
+    my @block_matched;
+    my $next_result = 0;
+    for (my $bi = 0; $bi < @blocks; $bi++) {
+	my($from, $to) = @{$blocks[$bi]};
+	next if $to <= $next_result;
+ 	$next_result = 0;
+	for (my $i = 0; $i < @result; $i++) {
+	    my $mp = $block_matched[$bi][$i] = [];
+	    my $rp = $result[$i];
+	    while (@{$rp} and $rp->[0][1] < $from) {
+		shift @{$rp};
+	    }
+	    while (@{$rp} and $rp->[0][0] < $to) {
+		push(@{$mp}, shift @{$rp});
+	    }
+	    if (@{$mp} > 0) {
+		if ($xpattern[$i][0]) {
+		    $positive_hit[$bi]++;
+		} else {
+		    $negative_hit[$bi]++;
+		}
+	    }
+	    # remember next minimum result postion for optimazation
+	    if (@{$rp} and ($next_result == 0 or $rp->[0][0] < $next_result)) {
+		$next_result = $rp->[0][0];
+	    }
+	}
+	last if $next_result == 0;
+    }
+
+    ##
+    ## build effective block list
+    ##
+    my @effective;
+    my @mixed;
+    for (my $bi = 0; $bi < @blocks; $bi++) {
+	next if $negative_hit[$bi];
+	if ($positive_hit[$bi] == $required_count) {
+	    push(@effective, @{$blocks[$bi]});
+	    for my $mp (@{$block_matched[$bi]}) {
+		push(@mixed, @{$mp});
+	    }
+	}
+    }
+    @mixed = squeeze(sort {$a->[0]<=>$b->[0] || $a->[1]<=>$b->[1]} @mixed);
+    for my $mp (@mixed) {
+	push(@{$xp}, $mp->[0], $mp->[1] - $mp->[0]);
+    }
+    1;
+}
+sub squeeze {
+    use strict;
+    my @in = @_;
+    my @out;
+    push(@out, shift @in) if @in;
+    while (@in) {
+	my $top = shift @in;
+	if ($out[-1][1] >= $top->[0]) {
+	    $out[-1][1] = $top->[1] if $out[-1][1] < $top->[1];
+	} else {
+	    push(@out, $top);
+	}
+    }
+    @out;
+}
 ######################################################################
 sub warn {
     if (!$opt_I) {
@@ -1004,7 +1174,7 @@ sub asc2x0208 {
     if (/[0-9a-zA-Z]/) {
 	$_ = "#$_";
     }
-    elsif (tr|!-/|*ItpsuGJKv\134$]%?|	||	# !"#$%&'()*+,-./
+    elsif (tr|!-/|*ItpsuGJKv\134$]%?|	||	# !"#$%&'()*+,-./     "
 	   tr|:-@|'(cad)w|		||	# :;<=>?@
 	   tr|[-`|NoO02F|		||	# [\]^_`
 	   tr|{-~|PCQ1|) {			# {|}~
@@ -1086,6 +1256,7 @@ sub chash { $hash > $hash_t && (print STDERR "\n"), $hash = 0 if $hash; }
 sub max { $_[ ($_[$[] < $_[$[+1]) + $[ ]; }
 sub min { $_[ ($_[$[] > $_[$[+1]) + $[ ]; }
 sub pattern_list {
+    use strict;
     my($pattern) = @_;
     my @list;
 
@@ -1098,6 +1269,7 @@ sub pattern_list {
     @list;
 }
 sub select_list {
+    use strict;
     my($from, $what, $how) = @_;
     my @from = @$from;
     my @what = @$what;
@@ -1122,6 +1294,36 @@ sub select_list {
 	}
     }	
     $how ? @include : @exclude;
+}
+sub hit_block {
+    use strict;
+    my($from, $what, $how) = @_;
+    my @from = @$from;
+    my @what = @$what;
+
+    my(@exclude, @include);
+    my(@hit);
+    while (@from) {
+	while (@what and $what[1] <= $from[0]) {
+	    splice(@what, 0, 2);
+	}
+	if (@what == 0) {
+	    push(@exclude, splice(@from, 0));
+	    last;
+	}
+	while (@from and $from[0] < $what[0]) {
+	    push(@exclude, splice(@from, 0, 2));
+	}
+	while (@from and ($from[0] + $from[1]) <= $what[1]) {
+	    push(@include, splice(@from, 0, 2));
+	    #push(@hit, $what[0], $what[1]) if $hit[1] ne $what[1];
+	    push(@hit, $what[0], $what[1]);
+	}
+	while (@from and $from[0] < $what[1]) {
+	    push(@exclude, splice(@from, 0, 2));
+	}
+    }	
+    @hit;
 }
 
 ######################################################################
@@ -1373,7 +1575,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.4 2005/05/25 02:52:32 utashiro Exp $
+.XX $Id: mg,v 5.0.1.5 2009/11/18 10:49:03 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1408,9 +1610,9 @@ If the file has `.Z' or `.gz' suffix, the data is
 automatically uncompressed on the fly before search.  Use
 \-Z option to suppress this operation.  Because this
 mechanism is supported in generric framework, any kind of
-suffix and preprocessor pair can be defined by \-z option,
+suffix and preprocessor pair can be defined by \-\-if option,
 which also allows to give default input filter.  Output
-filter is specified by \-X option.
+filter is specified by \-\-of option.
 .PP
 .B [EMPHASIZING and BLOCK SEARCH]
 To emphasize the matched part of text, \-Q, \-u and \-b
@@ -1448,7 +1650,7 @@ big problem when searching some meaningful strings, but you
 may get in trouble when looking for short string especially
 single character.
 .PP
-Use \-j option to specify search string code.  Use \-z
+Use \-j option to specify search string code.  Use \-\-if
 option if you want convert file code before search.  Option
 \-y enables to find JIS X 0208 representation of ASCII
 characters (only EUC).
@@ -1461,8 +1663,8 @@ for ar format and ``[archive]file'' for tar format.  This
 function works for compressed file of course.  Use \-A
 option if you want to search from entire archived file.
 .PP
-If the file has `.zip', `.zoo' or `.lzh' suffix, the file is
-treated as \fIzip\fP, \fIzoo\fP and \fIlha\fP archive
+If the file has `.zip' or `.lzh' suffix, the file is
+treated as \fIzip\fP and \fIlha\fP archive
 respectively and each file contained in the archive will be
 the subject of search.  Option \-A disables this feature
 too.  File name is shown as ``{archive}file''.
@@ -1486,6 +1688,87 @@ whole file contents at once.  But it may slow down the
 speed of execution for large file, depending on the
 architecture and configuration of the system.  Maximum read
 and search again size can be specified by \-G option.
+.\"------------------------------------------------------------
+.SH EXTENDED PATTERN SEARCH
+.PP
+\fIMg\fP now supports completely new search method.  This
+feature is invoked by \-x flag, and then the specified
+pattern is interpreted in the different manner.
+.PP
+Pattern string is treated as a colleciton of tokens
+separated by white space.  Each component will be searched
+independently, but only the line which contains all of them
+will be printed.  For examle,
+.nf
+
+	mg \-xp 'foo bar buz' ...
+
+.fi
+will print lines which contain all of `foo', `bar' and
+`buz'.  They can be found in any order and/or any place in
+the string.  So this command find all of following texts.
+.nf
+
+	foo bar buz
+	buz bar foo
+	the foo, bar and buz
+
+.fi
+.PP
+If you want to use OR syntax, prepend question (`?') sign on
+each token, or use regular expression in pattern:
+.nf
+
+	mg \-xp 'foo bar buz ?yabba ?dabba ?doo'
+	mg \-exp 'foo bar buz yabba|dabba|doo'
+
+.fi
+This command will print the line which contains all of
+`foo', `bar' and `buz' and one or more from `yabba', `dabba'
+or `doo'.  Note that you need to use \-e option to enable
+regular expression interpretation.
+.PP
+Please be aware that multiple `?' preceded tokens are
+treated all mixed together.  That means `?A|B ?C|D' is
+equivalent to `?A|B|C|D'.  If you want to mean `(A or B) and
+(C or D)', use AND syntax instead of OR: `A|B\ C|D'.
+.PP
+NOT operator can be specified by prefixing the token by
+minus (`-') sign.  Next example will show the line which
+contain both `foo' and `bar' but none of `yabba' or `dabba'
+or `doo'.
+.nf
+
+	mg \-xp 'foo bar -yabba -dabba -doo'
+	mg \-exp 'foo bar -yabba|dabba|doo'
+
+.fi
+It is ok to set plus (`+') sign before positive AND token,
+but it has no effect.
+.PP
+When executed with \-o option, the paragraph which contains
+all these components will be found.  This style is much more
+usefull, actually.
+.PP
+You can't use double quote to include white space within
+each token.  Separate options are prepared to spcify each
+component individually; \-\-\fIand\fP, \-\-\fIor\fP and
+\-\-\fInot\fP.  These options can be used multiple times.
+.nf
+
+	mg \-\-and 'foo bar' \-\-and buz \-\-or 'yabba dabba' \-\-or doo ...
+
+.fi
+.PP
+Long option \-\-\fIxp\fP is equivalent to the combination of
+\-x and (optional) \-p options.  Author decided to override
+single character option \-x, to make it posssible using in
+this way:
+.nf
+
+	mg -oeiQxp 'foo bar buz' ...
+
+.fi
 .\"------------------------------------------------------------
 .SH ENVIRONMENT and STARTUP FILE
 Environment variable MGOPTS is used as a default options.
@@ -1525,11 +1808,11 @@ escaping.
 .PP
 When \fImg\fP found `__CODE__' line in .mgrc file, the rest
 of the file is evaluated as a Perl program.  You can define
-your own subroutines which can be used by \-x or \-\-exfunc
-options.  For those subroutines, file content will be
-provided by global variable $_.  Expected response from the
-subroutine is the list of numbers, which is made up by start
-and end offset pairs.
+your own subroutines which can be used by \-\-prep,
+\-\-include, \-\-exclude options.  For those subroutines,
+file content will be provided by global variable $_.
+Expected response from the subroutine is the list of
+numbers, which is made up by start and end offset pairs.
 .PP
 If you do not want to evaluate those programs in all
 invocation of the command, use \-\-require option to include
@@ -1544,9 +1827,12 @@ Ignore case.
 List filename only.
 .IP \-n
 Show line number.
-.IP \-h 
+.IP \-h
 Do not display filenames even if multiple filenames are
 specified by command line.
+.IP \-H
+Display filename even if single file is specified by
+command line.
 .LP
 .B SLIGHTLY DIFFERENT OPTIONS:
 .IP \-w 
@@ -1633,9 +1919,10 @@ option.
 .fi
 .IP "\-o"
 Print the paragraph which contains the pattern.  Each
-paragraph is delimited by two successive newline character
-by default.  Be aware that an empty line is not paragraph
-delimiter if which contains space characters.  Example:
+paragraph is delimited by two or more successive newline
+characters by default.  Be aware that an empty line is not
+paragraph delimiter if which contains space characters.
+Example:
 .nf
 
 	mg \-nQo 'setuid script' /usr/man/catl/perl.l
@@ -1817,7 +2104,7 @@ You can use option terminator \-\- for same purpose.
 
 .fi
 .IP \-A
-Disables archive mode search (ar, tar, zip, zoo).
+Disables archive mode search (ar, tar, zip).
 .IP \-Z 
 Disables automatic uncompress, gunzip.
 .IP "\-J \fIstring\fP"
@@ -1884,7 +2171,9 @@ supplied in ASCII.  Currently only EUC encoding is
 supported, and `\-j euc' option is required to enable this
 option.  If the pattern is specified in JIS X 0208 string,
 only JIS X 0208 character is searched.
-.IP "\-z \fIfilter\fP (or \fIEXP:filter:EXP:filter:...\fP)"
+.IP "\-\-man"
+Show manual page.
+.IP "\-\-if \fIfilter\fP (or \fIEXP:filter:EXP:filter:...\fP)"
 You can specify filter command which is applied to each
 files before search.  If filter information include multiple
 fields separated by colons, first field is perl expression
@@ -1894,8 +2183,8 @@ filter command is specified, it is applied to all files.
 Examples:
 .nf
 
-	mg \-z 'dd conv=ascii' string spoiled_files
-	mg \-z '/\e.tar$/:tar tvf \-' pattern *
+	mg \-\-if 'dd conv=ascii' string spoiled_files
+	mg \-\-if '/\e.tar$/:tar tvf \-' pattern *
 .fi
 .IP ""
 If the command doesn't accept stndard input as processing
@@ -1910,10 +2199,10 @@ Filters for compressed and gziped file is set by default
 unless \-Z option is given.  Default action is:
 .nf
 
-	mg \-z 's/\e.Z$//:zcat:s/\e.g?z$//:gunzip \-c'
+	mg \-\-if 's/\e.Z$//:zcat:s/\e.g?z$//:gunzip \-c'
 
 .fi
-.IP "\-x \fIexp\fP"
+.IP "\-\-prep \fIexp\fP"
 You can specify the any Perl expression to preprocess input
 data.  Some subroutine will be available for this purpose
 but currently only ``&mime'' is prepared.  If ``require''
@@ -1927,13 +2216,13 @@ MIME header encoding but current implementation handles only
 ISO-2022-JP encoding.  Example:
 .nf
 
-	mg \-x '&mime' \-00 From ~/Mail/inbox/*
+	mg \-\-prep '&mime' \-00 From ~/Mail/inbox/*
 
 .fi
 .RE
 .IP ""
 Note that, this process is done just before a search for the
-output from input filter if \-z option is specified.  So in
+output from input filter if \-\-if option is specified.  So in
 the above example, MIME encoded string is converted into
 ISO-2022-JP even if the input filter was specified to
 convert the all data into EUC.
@@ -1960,7 +2249,7 @@ file contents and the search pattern before execution.
 Actually, this is just a shortcut of option combination:
 .nf
 
-	mg \-j \fIcode\fP \-z 'nkf -\fIcode\fP' ...
+	mg \-j \fIcode\fP \-\-if='nkf -\fIcode\fP' ...
 
 .fi
 .IP "\-\-exclude \fIpattern\fP"
@@ -2059,7 +2348,7 @@ surrounding lines are displayed by \-c or \-o option.  Use
 .SH AUTHOR
 .nf
 Kazumasa Utashiro
-http://srekcah.org/~utashiro/contact.html
+http://www.srekcah.org/~utashiro/contact.html
 .fi
 .\"------------------------------------------------------------
 .SH "SEE ALSO"
