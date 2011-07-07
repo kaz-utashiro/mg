@@ -2,40 +2,40 @@
 'di ';
 'ds 00 \"';
 'ig 00 ';
-;#
-;# mg: multi-line grep
-;#
-;# Copyright (c) 2001 Kazumasa Utashiro <utashiro@srekcah.org>
-;# Copyright (c) 1994-2000 Kazumasa Utashiro <utashiro@iij.ad.jp>
-;# Internet Initiative Japan Inc.
-;# 3-13 Kanda Nishiki-cho, Chiyoda-ku, Tokyo 101-0054, Japan
-;#
-;# Copyright (c) 1991-1994 Kazumasa Utashiro
-;# Software Research Associates, Inc.
-;#
-;# Original: Mar 29 1991
-;; $rcsid = q$Id: mg,v 5.0.1.1 2001/09/14 14:59:42 utashiro Exp $;
-;#
-;# EXAMPLES:
-;#	% mg 'control message protocol' rfc*.txt.Z	# line across search
-;#	% mg -nRTP '*.[sch]' 'struct vnode' /sys	# recursive search
-;#	% mg -o sockaddr /usr/include/sys/socket.h	# paragraph mode
-;#	% mg -Bc0,1 '@(#)' /lib/libc.a			# binary mode
-;#	% mg -iTB copyright /bin/*			# auto bin/text mode
-;#	% tset -IQS | mg -ec0 '(so|se)=[^:]+'		# matched part only
-;#	% echo $path | mg -Q mh				# highlighting
-;#
-;# Use and redistribution for ANY PURPOSE are granted as long as all
-;# copyright notices are retained.  Redistribution with modification
-;# is allowed provided that you make your modified version obviously
-;# distinguishable from the original one.  THIS SOFTWARE IS PROVIDED
-;# BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES ARE
-;# DISCLAIMED.
-;#
+##
+## mg: multi-line grep
+##
+## Copyright (c) 2001-2002 Kazumasa Utashiro <utashiro@srekcah.org>
+## Copyright (c) 1994-2000 Kazumasa Utashiro <utashiro@iij.ad.jp>
+## Internet Initiative Japan Inc.
+## 3-13 Kanda Nishiki-cho, Chiyoda-ku, Tokyo 101-0054, Japan
+##
+## Copyright (c) 1991-1994 Kazumasa Utashiro
+## Software Research Associates, Inc.
+##
+## Original: Mar 29 1991
+;; $rcsid = q$Id: mg,v 5.0.1.2 2002/03/02 09:31:00 utashiro Exp $;
+##
+## EXAMPLES:
+##	% mg 'control message protocol' rfc*.txt.Z	# line across search
+##	% mg -nRTP '*.[sch]' 'struct vnode' /sys	# recursive search
+##	% mg -o sockaddr /usr/include/sys/socket.h	# paragraph mode
+##	% mg -Bc0,1 '@(#)' /lib/libc.a			# binary mode
+##	% mg -iTB copyright /bin/*			# auto bin/text mode
+##	% tset -IQS | mg -ec0 '(so|se)=[^:]+'		# matched part only
+##	% echo $path | mg -Q mh				# highlighting
+##
+## Use and redistribution for ANY PURPOSE are granted as long as all
+## copyright notices are retained.  Redistribution with modification
+## is allowed provided that you make your modified version obviously
+## distinguishable from the original one.  THIS SOFTWARE IS PROVIDED
+## BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES ARE
+## DISCLAIMED.
+##
 
-;#
-;# perl4 on BSD/OS 3.[01] has wrong $] value, oh my...
-;#
+##
+## perl4 on BSD/OS 3.[01] has wrong $] value, oh my...
+##
 $perl4 = ($] < 5) || (40000 < $]);
 
 if ($perl4) {
@@ -43,9 +43,9 @@ if ($perl4) {
 	"Use version 2 seriese instead.\n";
 }
 
-;#
-;# Match in 5.6 or later supports matched offset list: @-, @+
-;#
+##
+## Match in 5.6 or later supports matched offset list: @-, @+
+##
 $has_matched_offset_list = (!$perl4) && ($] >= 5.006);
 
 require('getopts.pl');
@@ -67,7 +67,6 @@ require('getopts.pl');
 	'C:chars:continuous characters',
 	'u::underline matched string (except JIS)',
 	'b::make bold (print twice) matched string (except JIS)',
-	'q::quote matched string (except JIS)',
 	'Q::stand-out matched string (except JIS)',
 	'Y::yield to -Q option even if stdout is not a terminal',
 	'a::print whole file (no filename and line number)',
@@ -119,35 +118,35 @@ sub usage {
 
 &eval(join(' ', grep($_ = "\$db_$_++;", split(//, $opt_d))), $opt_d =~ /e/);
 
-;# show unused option characters
+## show unused option characters
 if ($opt_U) {
     $_ = join('','0'..'9',"\n",'a'..'z',"\n",'A'..'Z',"\n");
     eval "tr/$opts/./";
     die $_;
 }
 
-;# show man pages
+## show man pages
 if ($opt_H) {
     exec "nroff -man $0 |" . ($ENV{'PAGER'} || 'more') . ' -s';
     die;
 }
 
-;# setup delimitting character
+## setup delimitting character
 if ($opt_C) {
-    $delim = sprintf('[\\s%s]', &quotemeta($opt_C));
+    $delim = sprintf('[\\s%s]', quotemeta($opt_C));
 } elsif ($opt_y && $opt_j eq 'euc') {
     $delim = '(\s|\\241\\241)';		# JIS X 0208 space
 } else {
     $delim = '\s';
 }
 $delim .= $opt_w ? '+' : '*';
-$rawdelim = &quotemeta($delim);
+$rawdelim = quotemeta($delim);
 
 $in  = join('|', (@in  = ('\e\$\@', '\e\$B')));
 $out = join('|', (@out = ('\e\(J',  '\e\(B')));
 $shiftcode   = '(' . join('|', @in, @out) . ')';
 $optionalseq = '(' . join('|', @in, @out, $opt_C || '\s'). ')*';
-$rawoptionalseq = &quotemeta($optionalseq);
+$rawoptionalseq = quotemeta($optionalseq);
 
 defined($opt_j) && ($opt_j eq 'is') && ($opt_j = 'jis');
 
@@ -161,15 +160,31 @@ sub mkpat {
 	if (/$in/o)  { $jis = 1; $p .= $optionalseq if $p; next; }
 	if (/$out/o) { $jis = 0; next; }
 	if ($jis)    { s/(..)/&jis($1)/eg; $p .= $_; next; }
-	s/(([\200-\377])?.)/length($1) > 1 ? &mb($1) : &asc($1)/eg; $p .= $_;
+	if ($opt_e or $opt_E) {
+	    s{
+		(\(\?\<[=!][^\)]*\))	# look-behind pattern
+		|
+		([\200-\377]?.)		# normal characters
+	    }{
+		if ($1) {
+		    $1;
+		} else {
+		    length($2) > 1 ? &mb($2) : &asc($2)
+		}
+	    }egx;
+	} else {
+	    s/([\200-\377]?.)/length($1) > 1 ? &mb($1) : &asc($1)/eg;
+	}
+	$p .= $_;
     }
     $p =~ s/($rawdelim|$rawoptionalseq)+$//;
     length($p) ? $p : undef;
 }
 
-;# make search pattern
+## make search pattern
 if ($opt_f) {
     local(@opt_f) = `cat $opt_f`;
+    @opt_f = grep { !/^#/ } @opt_f;
     for (@opt_f) { s/\n//; }
     $opt_p = join('|', grep($_ = &mkpat($_), @opt_f));
 } else {
@@ -181,7 +196,7 @@ if ($opt_f) {
 ($opt_P, $opt_V) = (&wildcard($opt_P), &wildcard($opt_V));
 $opt_p = "\\b$opt_p\\b" if $opt_w && !$opt_E;
 
-;# some option have to be disabled when searching JIS string
+## some option have to be disabled when searching JIS string
 if (defined($jis)) {
     for ('q', 'u', 'b') {
 	local(*opt) = "opt_$_";
@@ -189,9 +204,9 @@ if (defined($jis)) {
     }
 }
 
-;#
-;# make search functions
-;#
+##
+## make search functions
+##
 $_i = $opt_i ? 'i' : '';				# ignore case?
 ($check, $_g) = $opt_1 ? ('if', '') : ('while', 'g');	# first match?
 $Q = pack('C', ord($Q) + 1) until index("$opt_p$opt_v$opt_r", $Q) < $[;
@@ -201,10 +216,6 @@ if ($has_matched_offset_list) {
     $length = '$+[0] - $-[0]';
 }
 else {
-    ##
-    ## Perl4 has a bug in a treatment of $` variable; it varies whether
-    ## the pattern is simple string or regex.  So I insist it to be
-    ## treated as a regex by enclosing by parentheses.
     ##
     ## Perl5 has a function pos() which enable to get last matched
     ## position, so we can avoid to use $` and $& to eliminate to cost of
@@ -219,13 +230,8 @@ else {
     ##
     $opt_p =~ s/\\([1-9])\b/'\\' . ($1+1)/ge;
     $opt_p = "($opt_p)";
-    if ($perl4) {
-	$offset = 'length($`)';
-	$length = 'length($&)';
-    } else {
-	$offset = 'pos($_) - length($1)';
-	$length = 'length($1)';
-    }
+    $offset = 'pos($_) - length($1)';
+    $length = 'length($1)';
 }
 &eval("sub search {
     local(*_, *array) = \@_;
@@ -239,8 +245,9 @@ sub match {
     m${Q}\$pattern${Q}$_i;
 }");
 
-($ql, $qr, $qd, $qe) = ('>>', '<<', '', '') if $opt_q;
-($ql, $qr, $qd, $qe) = &sose if $opt_Q && ($opt_Y || -t STDOUT);
+if ($opt_Q && ($opt_Y || -t STDOUT)) {
+    ($ql, $qr, $qd, $qe) = &sose;
+}
 $nlqsubs = $opt_n ? qq#s/\\n/"$qd\\n\$file".++\$line.":$qe"/ge#
 		  : "s/\\n/$qd\\n\$file$qe/g";
 $nlqsubs = q|s/\\n/++$line;"| . $opt_J . '"/ge' if defined $opt_J;
@@ -282,16 +289,7 @@ $tar_header_format = "a100 a8 a8 a8 a12 a12 a8 a a100 a*";
 unless ($opt_W) {
     local(%units);
     @units{'b', 'k', 'm'} = (512, 1024, 1024 * 1024);
-    #
-    # If perl5, mg is free from $`, $& and $', so it's possible to process
-    # large memory at one time.  Using perl4, $` is used to get matching
-    # posision, so processing large amount data slows down the speed alot.
-    #
-    if ($perl4) {
-	($maxreadsize, $keepsize) = (1024 * 30, 1024 * 2);
-    } else {
-	($maxreadsize, $keepsize) = (1024 * 512, 1024 * 2);
-    }
+    ($maxreadsize, $keepsize) = (1024 * 512, 1024 * 2);
     $opt_G =~ s/(\d+)([kbm])/$1 * $units{"\l$2"}/gei;
     if ($opt_G =~ m|([\d]+)\D*([\d]+)?|i) {
 	$maxreadsize = $1+0 if $1;
@@ -446,6 +444,7 @@ sub open_nextfile {
 }
 
 sub main {
+
     while (defined($file = &open_nextfile)) {
 	$_ = '';
 	$size = -1;
@@ -506,7 +505,7 @@ sub main {
     }
 }
 
-;# remember start time
+## remember start time
 if ($db_t) {
     @s = times;
 }
@@ -529,13 +528,13 @@ MAIN: {
 }
 &chash;
 
-;# show time info
+## show time info
 if ($db_t) {
     @e = times;
     printf STDERR "%.3fu %.3fs\n", $e[0]-$s[0], $e[1]-$s[1];
 }
 
-;# show statistic info
+## show statistic info
 if ($db_s) {
     printf(STDERR "%d pattern was found in %d files from total %d files\n",
 	   $total_matched, $total_hitfiles, $total_files);
@@ -734,11 +733,6 @@ sub grep {
 }
 ######################################################################
 
-sub quotemeta {
-    local($_) = @_;
-    s/(\W)/\\$1/g;
-    $_;
-}
 sub warn {
     if (!$opt_I) {
 	&chash;
@@ -769,7 +763,7 @@ sub asc {
     local($_) = @_;
     $opt_E || s/\s/$delim/ || $opt_e || do {
 	if ($opt_y && $opt_j eq 'euc') {
-	    local(@alts) = (&quotemeta($_));
+	    local(@alts) = (quotemeta($_));
 	    if (/[!-~]/) {
 		push(@alts, sprintf("\\%03o\\%03o",
 				    unpack('CC', &asc2x0208($_, 1))));
@@ -781,7 +775,7 @@ sub asc {
 	    }
 	    $_ = '(' . join('|', @alts) . ')';
 	} else {
-	    $_ = &quotemeta($_);
+	    $_ = quotemeta($_);
 	}
     };
     $_;
@@ -801,7 +795,7 @@ sub mb {
     $ret;
 }
 sub jis {
-    &quotemeta(shift) . $optionalseq;
+    quotemeta(shift) . $optionalseq;
 }
 sub asc2x0208 {
     local($_, $msb) = @_;
@@ -869,7 +863,7 @@ sub truncate {			# emulate $/.
 sub mime {			# RFC1342 MIME header encoding
     s/=\?ISO-2022-JP\?B\?([\w\+\/]+)=*\?=/&decode64($1)/ige;
 }
-;# decode BASE64 encoded string
+## decode BASE64 encoded string
 sub decode64 {
     local($s_64) = shift;
     local($s_uu, $len, $_);
@@ -890,44 +884,44 @@ sub max { $_[ ($_[$[] < $_[$[+1]) + $[ ]; }
 sub min { $_[ ($_[$[] > $_[$[+1]) + $[ ]; }
 ######################################################################
 
-;#------------------------------------------------------------
-;# usage.pl: make a string for usage line.
-;#
-;# $Id: mg,v 5.0.1.1 2001/09/14 14:59:42 utashiro Exp $
-;#
-;# Syntax:
-;# &Usage($command, $option, $trailer, @arglist);
-;#	$command: command name (you can use $0 here)
-;#	$option:  option string same as &Getopt
-;#	$trailer: trailer string (optional)
-;#	@arglist: description for options which takes argument (optional)
-;#		  format is "option character : argument : description"
-;#		  where argument and description are optional.
-;#		  special form '-:xyz' hides options -x, -y, -z.
-;#
-;# &Usage returns list of two strings where 1st string is for usage
-;# line and 2nd is for description.
-;#
-;# &Mkopts(@arglist) can be used to make $option string.  If $option
-;# argument for &Usage is not supplied, &Usage will make it by &Mkopts.
-;#
-;# Example:
-;#	$opts = 'deg:u:s:x'; @arglist = (
-;#		'-:x',			# means -x is secret option
-;#		'd::debug',
-;#		'g:group',
-;#		'u:user:user name',
-;#	);
-;#	unless (&Getopts($opts)) {
-;#		print &Usage($0, $opts, 'file ...', @arglist);
-;#		exit(1);
-;#	}
-;#
-;# Result:
-;#	usage: sample [ -d ] [ -e ] [ -g group ] [ -u user ] [ -s : ] file ...
-;#		-d       debug
-;#		-u user  user name
-;#
+##------------------------------------------------------------
+## usage.pl: make a string for usage line.
+##
+## $Id: mg,v 5.0.1.2 2002/03/02 09:31:00 utashiro Exp $
+##
+## Syntax:
+## &Usage($command, $option, $trailer, @arglist);
+##	$command: command name (you can use $0 here)
+##	$option:  option string same as &Getopt
+##	$trailer: trailer string (optional)
+##	@arglist: description for options which takes argument (optional)
+##		  format is "option character : argument : description"
+##		  where argument and description are optional.
+##		  special form '-:xyz' hides options -x, -y, -z.
+##
+## &Usage returns list of two strings where 1st string is for usage
+## line and 2nd is for description.
+##
+## &Mkopts(@arglist) can be used to make $option string.  If $option
+## argument for &Usage is not supplied, &Usage will make it by &Mkopts.
+##
+## Example:
+##	$opts = 'deg:u:s:x'; @arglist = (
+##		'-:x',			# means -x is secret option
+##		'd::debug',
+##		'g:group',
+##		'u:user:user name',
+##	);
+##	unless (&Getopts($opts)) {
+##		print &Usage($0, $opts, 'file ...', @arglist);
+##		exit(1);
+##	}
+##
+## Result:
+##	usage: sample [ -d ] [ -e ] [ -g group ] [ -u user ] [ -s : ] file ...
+##		-d       debug
+##		-u user  user name
+##
 sub Mkopts {
     local($opts);
     grep(/^([^-]):(.)/ && ($opts .= $1 . ':' x ($2 ne ':')), @_);
@@ -975,7 +969,7 @@ sub Usage {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.1 2001/09/14 14:59:42 utashiro Exp $
+.XX $Id: mg,v 5.0.1.2 2002/03/02 09:31:00 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1015,7 +1009,7 @@ which also allows to give default input filter.  Output
 filter is specified by \-X option.
 .PP
 .B [EMPHASIZING and BLOCK SEARCH]
-To emphasize the matched part of text, \-Q, \-q, \-u and \-b
+To emphasize the matched part of text, \-Q, \-u and \-b
 options are supported.  This is useful especially used with
 block search options.  Option \-c gives the number of
 surrounding lines to be shown along with matched line.
@@ -1079,8 +1073,7 @@ process depending file contents, it is not supported yet.
 .B [BUFFERING POLICY]
 \fIMg\fP reads some amount of data at once, and the last
 portion of the chunk will be searched again with next chunk
-of data.  Default size of data chunk varies depending of
-perl version; using perl4, it's 30k and 512k on perl5.
+of data.  Default size of data chunk is 512k.
 Search-again-data size is 2k for both.  So if the matched
 segment size is more than 2K bytes, it may be truncated.
 This truncation happens only when the file size is more than
@@ -1258,13 +1251,10 @@ by precede each character by ``_^H''.
 .IP \-b 
 Make bold matched string.  Makes a matched string
 overstruck like ``f^Hfo^Hoo^Ho''.
-.IP \-q 
-Quote matched string by like ``>>matched<<''.  This options
-is disabled when searching JIS file.
 .IP \-Q 
 Use a stand-out feature of the terminal to quote the matched
 string (not for JIS).  This option is ignored when the
-standard output is not a terminal.  \-q and \-Q are useful
+standard output is not a terminal.  \-Q is useful
 for long line.  Try
 .nf
 
@@ -1273,7 +1263,7 @@ for long line.  Try
 .fi
 .IP \-a 
 Print all contents of the file.  This option makes sense
-only if used with options like \-q, \-Q, \-u, \-b, otherwise
+only if used with options like \-Q, \-u, \-b, otherwise
 it behaves like \fIcat\fP(1).  Filenames and lines are not
 printed with this option.
 .IP \-s 
@@ -1367,7 +1357,8 @@ the same line.
 .IP "\-f \fIfile\fP"
 Specify the file which contains search pattern.  When file
 contains multiple lines, patterns on each lines are search
-in OR context.
+in OR context.  The line starting with sharp (#) character is
+ignored.
 .IP "\-p pattern"
 Specify search pattern.  You don't have to use this option
 explicitly because the first argument after options will be
@@ -1537,6 +1528,12 @@ http://www.srekcah.org/~utashiro/perl/scripts/mg/
 .\"------------------------------------------------------------
 .SH BUGS
 .PP
+Perl5 look-behind expression can be used but it is treated
+as a bare regex, because look-behind pattern is not allowed
+to be variable length.  Also sinse this special treatmen is
+done be very sinmple method, you can't use braces within
+look-behind pattern.
+.PP
 When using perl older than version 5.6, actual pattern is
 enclosed by parentheses, and it confuses the order of
 subexpressions if it contains back-references.  The order is
@@ -1557,7 +1554,7 @@ Not enough space for new option (try undocumented option
 .\"------------------------------------------------------------
 .SH LICENSE
 .PP
-Copyright (c) 1994-2001 Kazumasa Utashiro
+Copyright (c) 1994-2002 Kazumasa Utashiro
 .PP
 Use and redistribution for ANY PURPOSE are granted as long as all
 copyright notices are retained.  Redistribution with modification
