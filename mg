@@ -5,16 +5,10 @@
 ##
 ## mg: multi-line grep
 ##
-## Copyright (c) 2001-2002 Kazumasa Utashiro <utashiro@srekcah.org>
-## Copyright (c) 1994-2000 Kazumasa Utashiro <utashiro@iij.ad.jp>
-## Internet Initiative Japan Inc.
-## 3-13 Kanda Nishiki-cho, Chiyoda-ku, Tokyo 101-0054, Japan
-##
-## Copyright (c) 1991-1994 Kazumasa Utashiro
-## Software Research Associates, Inc.
+## Copyright (c) 1991-2005 Kazumasa Utashiro <utashiro@srekcah.org>
 ##
 ## Original: Mar 29 1991
-;; $rcsid = q$Id: mg,v 5.0.1.2 2002/03/02 09:31:00 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.3 2005/01/10 11:44:03 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -33,23 +27,15 @@
 ## DISCLAIMED.
 ##
 
-##
-## perl4 on BSD/OS 3.[01] has wrong $] value, oh my...
-##
-$perl4 = ($] < 5) || (40000 < $]);
+require 5.005;
 
-if ($perl4) {
-    die "Sorry, this version of mg no longer support perl4.\n" .
-	"Use version 2 seriese instead.\n";
-}
+use File::stat;
+my $file_st;	# global File::stat object for current processing file
 
-##
-## Match in 5.6 or later supports matched offset list: @-, @+
-##
-$has_matched_offset_list = (!$perl4) && ($] >= 5.006);
+use Getopt::Long;
+use Text::ParseWords qw(shellwords);
 
-require('getopts.pl');
-#require('usage.pl');
+my @opts;
 @opts =('i::ignore case',
 	'l::list filename only',
 	'n::print line number',
@@ -73,7 +59,7 @@ require('getopts.pl');
 	's::output filename and line number separately',
 	'2::duplicate line if multiple matching is occured',
 	'R::search recursively',
-	'D:level:descending directory level',
+	'D:level|i:descending directory level',
 	'P:pattern:specify search file in wildcard (w/-R)',
 	'V:pattern:specify exception file in wildcard (w/-R)',
 	'F::follow symbolic link of directory (w/-R)',
@@ -100,27 +86,121 @@ require('getopts.pl');
 	'd:flags:display info (f:file d:dir c:count m:misc s:stat)',
 	'-:IHYUt:',
 	't::-T takes only ascii files',
-	'k::remember passphrase for PGP key',
 	'I::ignore error', 'H::manual', 'U::show unused opts',
+	'body::search only from message body',
+	'pgp::remember passphrase and use it for PGP encrypted file',
+	'pgppass:phrase:pgp passphrase',
+	'pcode:code:set process character code',
+	'euc::shortcut for --pcode euc',
+	'jis::shortcut for --pcode jis',
+	'sjis::shortcut for --pcode sjis',
+	'mime::shortcut for -x "&mime"',
+	'exclude:@pattern:specify exclude pattern or subroutine',
+	'include:@pattern:oposit to --exclude',
+	'require:file:require perl code',
+	'file:@file:target files (repeatable)',
 );
-$opts = &Mkopts(@opts);
+my @optspec = &MkoptsLong(@opts);
+my @opt_file;
+my @opt_exclude;
+my @opt_include;
+
+##
+## User customizable option handling in ~/.mgrc
+## Special option 'default' and $ENV{MGOPTS} is set by default.
+##
+my %user_option;
+sub set_option {
+    my $optname = shift;
+    if (defined @{$user_option{$optname}}) {
+	push(@{$user_option{$optname}}, @_);
+    } else {
+	$user_option{$optname} = \@_;
+    }
+}
+if (open(MGRC, "$ENV{HOME}/.mgrc")) {
+    while (<MGRC>) {
+	next if /^\s*($|\#)/;
+	if (/^\s*__CODE__\s*$/) {
+	    local($/) = undef;
+	    my $code = <MGRC>;
+	    &eval($code);
+	    last;
+	}
+	if (my($arg0, $arg1, $rest) = /^\s*(\S+)\s+(\S+)\s+(.*)/) {
+	    if ($arg0 eq 'option') {
+		set_option($arg1, shellwords($rest));
+	    }
+	    elsif ($arg0 eq 'define') {
+		set_option($arg1, $rest);
+	    }
+	}
+    }
+    close MGRC;
+}
+for (my $i = 0; $i <= $#ARGV; $i++) {
+    if ($ARGV[$i] =~ /^-:(.*)/ and defined $user_option{$1}) {
+	splice(@ARGV, $i, 1, @{$user_option{$1}});
+	redo;
+    }
+}
+if (defined $user_option{default}) {
+    unshift(@ARGV, @{$user_option{default}});
+}
 if ($ENV{'MGOPTS'}) {
-    require('shellwords.pl');
-    unshift(@ARGV, &shellwords($ENV{'MGOPTS'}));
-};
-&Getopts($opts) || &usage;
+    unshift(@ARGV, shellwords($ENV{'MGOPTS'}));
+}
+
+my @SAVEDARGV = @ARGV;
+Getopt::Long::Configure("bundling");
+GetOptions(@optspec) || &usage;
 sub usage {
-    @usage = &Usage($0, $opts, "pattern [ file ... ]", @opts);
-    print "usage: mg [ -options ] pattern [ file... ]\n", pop(@usage);
+    my($usage, $option) =
+	&UsageLong($0, \@optspec, "pattern [ file ... ]", @opts);
+    print "usage: mg [ -options ] pattern [ file... ]\n", $option;
+
+    if (defined %user_option) {
+	print "\nUser defined options:\n";
+	foreach my $k (sort keys %user_option) {
+	    printf "\t-:%-14s %s\n", $k, join(' ', @{$user_option{$k}});
+	}
+	print "\n";
+    }
+
     print "$rcsid\n" if $rcsid =~ /:/;
+
     exit 2;
 }
-
+
 &eval(join(' ', grep($_ = "\$db_$_++;", split(//, $opt_d))), $opt_d =~ /e/);
+
+if ($db_m) {
+    warn "\@ARGV = @SAVEDARGV\n";
+    warn "\@optspec = @optspec\n";
+}
+
+## character code option shortcuts
+## nkf is hardcorded -- XXX
+$opt_pcode = "jis" if $opt_jis;
+$opt_pcode = "euc" if $opt_euc;
+$opt_pcode = "sjis" if $opt_sjis;
+if ($opt_pcode) {
+    $opt_z = sprintf("nkf -%s", substr($opt_pcode, 0, 1));
+    $opt_j = $opt_pcode;
+}
+
+## --mime shortcut
+$opt_x = '&mime' if $opt_mime;
 
 ## show unused option characters
 if ($opt_U) {
     $_ = join('','0'..'9',"\n",'a'..'z',"\n",'A'..'Z',"\n");
+    my $opts;
+    for (@optspec) {
+	if (/^(.)(?:=s)?$/) {
+	    $opts .= $1;
+	}
+    }
     eval "tr/$opts/./";
     die $_;
 }
@@ -151,10 +231,10 @@ $rawoptionalseq = quotemeta($optionalseq);
 defined($opt_j) && ($opt_j eq 'is') && ($opt_j = 'jis');
 
 sub mkpat {
-    local($pat, $p) = @_;
+    my($pat, $p) = @_;
     if (defined($opt_j)) {
 	require('jcode.pl');
-	&jcode'convert(*pat, $opt_j);
+	&jcode'convert(\$pat, $opt_j);
     }
     for (split(/$shiftcode/, $pat)) {
 	if (/$in/o)  { $jis = 1; $p .= $optionalseq if $p; next; }
@@ -198,7 +278,7 @@ $opt_p = "\\b$opt_p\\b" if $opt_w && !$opt_E;
 
 ## some option have to be disabled when searching JIS string
 if (defined($jis)) {
-    for ('q', 'u', 'b') {
+    for ('u', 'b') {
 	local(*opt) = "opt_$_";
 	$opt = 0, warn "-$_ is disabled.\n" if $opt;
     }
@@ -207,43 +287,49 @@ if (defined($jis)) {
 ##
 ## make search functions
 ##
-$_i = $opt_i ? 'i' : '';				# ignore case?
-($check, $_g) = $opt_1 ? ('if', '') : ('while', 'g');	# first match?
-$Q = pack('C', ord($Q) + 1) until index("$opt_p$opt_v$opt_r", $Q) < $[;
-
-if ($has_matched_offset_list) {
+if ($] >= 5.006) {
     $offset = '$-[0]';
     $length = '$+[0] - $-[0]';
 }
 else {
     ##
     ## Perl5 has a function pos() which enable to get last matched
-    ## position, so we can avoid to use $` and $& to eliminate to cost of
-    ## using these variables.  To do that, whole pattern has to be caught
+    ## position, so we can avoid to use $` and $& to eliminate the cost of
+    ## using those variables.  To do that, whole pattern has to be caught
     ## by $1, which requires the pattern encloses by parentheses.
     ##
-    ## However, enclosing the whole pattern by parenthese confuses the use
+    ## However, enclosing the whole pattern by parentheses confuses the use
     ## of other parentheses in the original regular expression, because
     ## the order of parantheses incremented by one.  Following code fix
     ## the back-reference number in the form of \n.  I doubt this code
-    ## works fine for arbitrary expression. (XXX)
+    ## always works fine. (XXX)
     ##
     $opt_p =~ s/\\([1-9])\b/'\\' . ($1+1)/ge;
     $opt_p = "($opt_p)";
     $offset = 'pos($_) - length($1)';
     $length = 'length($1)';
 }
+if ($opt_i) {
+    $opt_p = "(?i)$opt_p";
+}
+if ($opt_1) {
+    $check = 'if';
+    $_g = '';
+} else {
+    $check = 'while';
+    $_g = 'g';
+}
 &eval("sub search {
     local(*_, *array) = \@_;
-    return m$Q$opt_p$Q$_i if \@_ < 2;
-    $check (m$Q$opt_p$Q$_g$_i) {
+    return /\$opt_p/o if \@_ < 2;
+    $check (/\$opt_p/o$_g) {
 	push(\@array, $offset, $length);
     }
-}
-sub match {
-    local(*_, \$pattern) = \@_;
-    m${Q}\$pattern${Q}$_i;
 }");
+sub match {
+    local(*_, $pattern) = @_;
+    m/$pattern/;
+}
 
 if ($opt_Q && ($opt_Y || -t STDOUT)) {
     ($ql, $qr, $qd, $qe) = &sose;
@@ -287,10 +373,9 @@ $tar_header_format = "a100 a8 a8 a8 a12 a12 a8 a a100 a*";
     $tar_mtime, $tar_chksum, $tar_linkflag, $tar_linkname, $tar_pad) = (0..9);
 
 unless ($opt_W) {
-    local(%units);
-    @units{'b', 'k', 'm'} = (512, 1024, 1024 * 1024);
+    my %units = ('b' => 512, 'k' => 1024, 'm' => 1024 * 1024);
     ($maxreadsize, $keepsize) = (1024 * 512, 1024 * 2);
-    $opt_G =~ s/(\d+)([kbm])/$1 * $units{"\l$2"}/gei;
+    $opt_G =~ s/(\d+)(?i)([kbm])/$1 * $units{lc($2)}/ge;
     if ($opt_G =~ m|([\d]+)\D*([\d]+)?|i) {
 	$maxreadsize = $1+0 if $1;
 	$keepsize = $2+0 if $2;
@@ -299,7 +384,7 @@ unless ($opt_W) {
 }
 
 if ($opt_T) {
-    local($quick_check, $binary_check) = $opt_t
+    my($quick_check, $binary_check) = $opt_t
 	? ('/\0/', 'tr/\000-\007\013\016-\032\034-\037\200-\377/./*10>length')
 	: ('/[\0\377]/', 'tr/\000-\007\013\016-\032\034-\037/./*10>length');
     &eval('sub binary {
@@ -309,17 +394,25 @@ if ($opt_T) {
     }');
 }
 
-push(@filter, 's/\.Z$//', 'zcat', 's/\.g?z$//', 'gunzip -c') unless $opt_Z;
-push(@filter, split(':', $opt_z)) if $opt_z;
-
-##
-## Push PGP decrypt command for input filter.
-## Currently pgp version 2 is hard coded, but it have to be fixed soon. XXX
-##
-if (defined $opt_k and not defined $opt_z) {
-    push(@filter, 'pgp -f');
+my $pgp;
+if ($opt_pgp) {
+    $opt_W = 1;
+    $pgp = new PgpFilter;
+    if ($opt_pgppass) {
+	$pgp->initialize({passphrase => $opt_pgppass});
+    } elsif ($opt_passphrase_fd) {
+	$pgp->initialize({passphrase_fd => $opt_passphrase_fd});
+    } else {
+	$pgp->initialize();
+    }
 }
 
+unless ($opt_Z) {
+    push(@filter, 's/\.Z$//', 'zcat', 's/\.g?z$//', 'gunzip -c');
+}
+if ($opt_z) {
+    push(@filter, split(':', $opt_z));
+}
 for ($_ = ''; @_ = splice(@filter, 0, 2); ) {
     unshift(@_, '1') if @_ == 1;
     $_[0] =~ /^\s*unlink\s*$/ && die "It's too dangerous!! \"$_[0]\"\n";
@@ -345,6 +438,10 @@ sub zfiles {
     @z;
 }
 
+if ($opt_require) {
+    require $opt_require;
+}
+
 if ($opt_x) {			# define input filter
     # do require/use once
     while ($opt_x =~ s/((require|use)\b[^;]+;?)//) {
@@ -357,31 +454,18 @@ if ($opt_X) {			# open output filter
     $| = 1;
 }
 
-if ($opt_k) {
-    use Fcntl;
-
-    my $passfile = "/tmp/invisible_passfile_$$";
-    my $passphrase;
-    
-    sysopen(PGPPASS, $passfile, O_RDWR|O_CREAT|O_EXCL, 0000)
-	or die "sysopen $passfile: $!\n";
-    unlink($passfile)
-	or die "can't unlink $passfile: $!\n";
-    fcntl(PGPPASS, F_SETFD, 0)
-	or die "can't fcntl F_SETFD: $!\n";
-
-    print STDERR "Enter PGP Passphrase> ";
-    system "stty -echo";
-    $passphrase = <STDIN>;
-    system "stty echo";
-    print STDERR "\n";
-
-    syswrite(PGPPASS, $passphrase, length $passphrase);
-    $passphrase =~ s/./\0/g;
-    $passphrase = "";
-    seek(PGPPASS, 0, 0);
-
-    $ENV{PGPPASSFD} = fileno(PGPPASS);
+##
+## Combine @opt_include and @opt_exclude into single list.
+##
+my @opt_clude;
+if (@opt_include or @opt_exclude) {
+    $opt_W = 1; # XXX is this necessary?
+    for $clude (@opt_include) {
+	push(@opt_clude, [1, $clude]);
+    }
+    for $clude (@opt_exclude) {
+	push(@opt_clude, [0, $clude]);
+    }
 }
 
 $hash_t = 1;
@@ -394,8 +478,9 @@ $/ = !defined($opt_0) ? undef : $opt_0 =~ /^0+$/ ? '' : pack('C', oct($opt_0));
 $* = 1;
 
 open(SAVESTDIN, '<&STDIN');
+unshift(@ARGV, @opt_file) if @opt_file;
 push(@ARGV, '-') unless @ARGV || $opt_S;
-
+
 sub open_nextfile {
     local($/, $file) = ("\n");
     while (defined($file = shift(@ARGV)) ||
@@ -408,13 +493,21 @@ sub open_nextfile {
 	$file = $dirstack[$[] . $file;
 	next if $opt_V && $file =~ /$opt_V/o;
 
-	stat($file);
-	next if -p _ || -c _ || -b _;	# skip FIFO and device files
+	$file_st = stat($file);
+	if (-p _ || -c _ || -b _) {	# skip FIFO and device files
+	    next;
+	}
 	if (-d _ && $opt_R && (!-l $file || $opt_F)) {
-	    next if defined($opt_D) && @dirstack >= $opt_D;
+	    if (defined($opt_D) && @dirstack >= $opt_D) {
+		next;
+	    }
 	    ($ent = -@ARGV) += unshift(@ARGV, &getdirent($file), $dirend) - 1;
 	    unshift(@dirstack, $file . ($file =~ m|/$| ? '' : '/'));
-	    &chash, warn '=' x @dirstack, "> $file ($ent entries).\n" if $db_d;
+	    if ($db_d) {
+		&chash;
+		warn sprintf("%s> %s (%d entries).\n",
+			     '=' x @dirstack, $file, $ent);
+	    }
 	    next;
 	}
 	if (!$opt_A && $file =~ /\.($zsuffix)$/o) {
@@ -431,8 +524,8 @@ sub open_nextfile {
 		$err = 2, &warn("$file: $!\n") unless -l $file; next;
 	    };
 	}
+
 	if (defined(&filter) && ($filter = &filter($file))) {
-	    seek(PGPPASS, 0, 0) if fileno(PGPPASS);
 	    open(STDIN, '-|') || exec($filter) || die "$filter: $!\n";
 	}
 	if ($filter && $db_p) {
@@ -506,7 +599,7 @@ sub main {
 }
 
 ## remember start time
-if ($db_t) {
+if ($db_s) {
     @s = times;
 }
 
@@ -528,36 +621,38 @@ MAIN: {
 }
 &chash;
 
-## show time info
-if ($db_t) {
-    @e = times;
-    printf STDERR "%.3fu %.3fs\n", $e[0]-$s[0], $e[1]-$s[1];
-}
-
-## show statistic info
+## show statistic info and consumed time
 if ($db_s) {
-    printf(STDERR "%d pattern was found in %d files from total %d files\n",
-	   $total_matched, $total_hitfiles, $total_files);
+    @e = times;
+    printf(STDERR "cpu %.3fu %.3fs\n",
+	   $e[0]-$s[0], $e[1]-$s[1]);
+    printf(STDERR "matched %d times %d files\n",
+	   $total_matched,
+	   $total_hitfiles,
+	   );
+    printf(STDERR "total %d files %d reads\n",
+	   $total_files,
+	   $total_loops,
+	   );
 }
 
 close STDOUT;
 
 if ($db_p) {
     open(STDOUT, ">&STDERR");
-    system "ps -l -p $$";
-}
-
-if ($db_p) {
-    open(STDOUT, ">&STDERR");
-    system "ps -l -p $$";
+    system "ps -lww -p $$";
 }
 
 exit($err || !$total_matched);
-
+
+######################################################################
+
 sub grepfile {
     local($c);
+
     if ($readonce = ($opt_W || $opt_r || (defined($/) && !$arfile))) {
-	$readsize = $size; $keepsize = 0;
+	$readsize = $size;
+	$keepsize = 0;
     } else {
 	$size -= length;
 	$readsize = &max(0, $maxreadsize - length);
@@ -568,18 +663,61 @@ sub grepfile {
     $more = 1;
     while ($more) {
 	$size -= $s = &append_data(STDIN, *_, $readsize);
-	&input_filter if defined &input_filter;
+
+	&pgp_decrypt_msg(*_) if $pgp;
+
+	if (defined &input_filter) {
+	    &input_filter;
+	}
+
 	if ($loop++ == 0) {
-	    printf STDERR "\r%d/%d", $hash, $total_files
-		if $db_c && ++$hash > $hash_t;
-	    $db_f && warn("$file: skip\n"), last if $opt_T &&
-		!($opt_t && $isfile) && ($bin = &binary($_)) && !$opt_B;
+	    if ($db_c or $db_t) {
+		my $s = '';
+		if ($db_c && ++$hash > $hash_t) {
+		    $s .= sprintf("[%d/%d] ", $hash, $total_files);
+		}
+		if ($db_t) {
+		    my @t = CORE::localtime($file_st->mtime);
+		    $s .= sprintf("%04d-%02d-%02d %02d:%02d:%02d ",
+				  $t[5] + 1900,
+				  $t[4] + 1,
+				  $t[3],
+				  $t[2],
+				  $t[1],
+				  $t[0]);
+		}
+		print STDERR "\r$s";
+	    }
+
+	    if ($opt_T
+		&& !($opt_t && $isfile) && ($bin = &binary($_))
+		&& !$opt_B) {
+		warn("$file: skip\n") if $db_f;
+		last;
+	    }
+
 	    warn $file, ' (binary)' x $bin, ":\n" if $db_f;
 	    $file = $showfname ? $file : '';
+	    if ($opt_body) {
+		my $p;
+		my $delim = "\n\n";
+		if (($p = index($_, $delim)) >= 0) {
+		    substr($_, 0, $p + length($delim)) = '';
+		}
+		$offset += $p + length($delim);
+	    }
 	}
 	$more = $readonce ? 0 : $size >= 0 ? $size : !eof(STDIN);
-	$more = !&truncate(*_, $/) && $more if defined($/) && !$isfile;
-	last if $opt_r && !&match(*_, $opt_r);
+	##
+	## Perl's native $/ functionality does not work now! (XXX)
+	## if (defined($/) and !$isfile) {
+	##
+	if (defined $/) {
+	    $more = !&truncate(*_, $/) and $more;
+	}
+	if ($opt_r and !&match(*_, $opt_r)) {
+	    last;
+	}
 	if ($opt_l) {		# print only filename
 	    $c = &search(*_) && do { &chash; print "$file\n"; last; };
 	    next;
@@ -594,13 +732,14 @@ sub grepfile {
 	$offset -= length;
 	$line -= tr/\n/\n/;
     }
+    $total_loops += $loop;
     warn "$loop loops\n" if $db_l;
-    while ($arfile && $size > 0 &&
-	   ($s = read(STDIN, $_, &min($size, 8192)))) {
+    while ($arfile and $size > 0 and
+	   $s = read(STDIN, $_, &min($size, 8192))) {
 	$size -= $s;
     }
     if ($pad) {
-	local($__trash__);
+	my $__trash__;
 	if (0) {
 	    ##
 	    ## This part used be written as this:
@@ -621,20 +760,52 @@ sub grepfile {
     ($c, $size);
 }
 
+sub pgp_decrypt_msg {
+    local(*_) = @_;
+    
+    s{^(-----BEGIN\ PGP\ MESSAGE-----
+	.*?
+	-----END\ PGP\ MESSAGE-----)$
+    }{
+	$pgp->decrypt($1);
+    }msgex;
+}
+
 sub append_data {
     local($FH, *buf, $maxsize) = @_;
-    local($len) = (length($buf));
+    my $len = length($buf);
+
     if ($maxsize >= 0) {
 	read($FH, $buf, $maxsize, $len);
     } else {
-	$buf .= <$FH>;
+	if (defined $file_st and $file_st->size >= 0) {
+	    read($FH, $buf, $file_st->size - $len, $len);
+	} else {
+	    if (0) {
+		##
+		## I don't know why, but this code is *veeeeery slow*.
+		##
+		$buf .= <$FH>;
+	    } else {
+		##
+		## Theoretically, "1 while read(...) > 0" do same thing.
+		## However, final 0 byte read consumes a lot of cpu time
+		## only to do nothing.  So checking eof is very important.
+		##
+		my $readsize = 10 * 1024 * 1024;
+		do {
+		    read($FH, $buf, $readsize, length($buf));
+		} while not eof $FH;
+	    }
+	}
 	length($buf) - $len;
     }
 }
-
+
 sub grep {
     local(*_, $file, *line, *offset, *lastmatch, $keepsize, $more) = @_;
-    local($matched, $_matched);
+    my($matched, $_matched);
+    my $include_sw = 0;
     $#x = $[ - 1;		# @x = ();
     &search(*_, *x);		# @x = (offset, length, offset, length...);
     splice(@x, 0, 2) while @x && $x[$[] + $offset <= $lastmatch;
@@ -643,6 +814,22 @@ sub grep {
     $neednlsubs = !$opt_s && $needinfo;
     $neednlqsubs = $neednlsubs || defined($opt_J);
     $file =~ s/(.$)/$1:/;
+
+    for my $clude (@opt_clude) {
+	my($include_sw, $arg) = @$clude;
+	my @select;
+	if ($arg =~ /^&([^=]*)(?:=(.*))?/) {
+	    my($func, @arg) = ($1, $2);
+	    @select = do $func(@arg);
+	}
+	else {
+	    @select = pattern_list($arg);
+	}
+	if ($include_sw or @select) {
+	    @x = select_list(\@x, \@select, $include_sw);
+	}
+    }
+
     for ($op = 0; ($p, $len) = splice(@x, 0, 2); ) {
 	@out = @err = ();
 	$print = $p_all;
@@ -691,12 +878,20 @@ sub grep {
 		    @cont = ("...]\n"), last if $n == 1;
 		}
 	    }
-	    last if $nnl < $x[$[] || $opt_2 || @x < 2;
+	    if ($nnl < $x[$[] || $opt_2 || @x < 2) {
+		last;
+	    }
 	    $opt_M && $print++;
 	    $between = substr($_, $p, $x[$[] - $p);
-	    last if $bin && $between =~ /[^\b\s!-~]/;
-	    &nlsubs(*between, $file, *l, 0) if $neednlsubs;
-	    $post_c -= ($between =~ tr/\n/\n/) if $opt_g;
+	    if ($bin && $between =~ /[^\b\s!-~]/) {
+		last;
+	    }
+	    if ($neednlsubs) {
+		&nlsubs(*between, $file, *l, 0);
+	    }
+	    if ($opt_g) {
+		$post_c -= ($between =~ tr/\n/\n/);
+	    }
 	    push(@out, $between);
 	}
 	if ($more) {
@@ -714,8 +909,8 @@ sub grep {
 	    }
 	}
 	$right = $nnl <= $p ? '' : substr($_, $p, $nnl - $p);
-	$lastnl = $opt_a && !$more && substr($right, -1, 1) eq "\n"
-		? chop($right) : '';
+	$lastnl = $opt_a && !$more &&
+	    substr($right, -1, 1) eq "\n" ? chop($right) : '';
 	next if $opt_v ne '' && substr($_, $pnl + 1, $nnl - $pnl) =~ /$opt_v/o;
 	$right =~ s/[^\b\s!-~][\000-\377]*// if $bin;
 	&nlsubs(*right, $file, *l, 0) if $neednlsubs;
@@ -732,7 +927,6 @@ sub grep {
     $matched;
 }
 ######################################################################
-
 sub warn {
     if (!$opt_I) {
 	&chash;
@@ -829,12 +1023,11 @@ sub wildcard {
     length($_) ? "^$_\$" : undef;
 }
 sub sose {
-    do 'ioctl.ph' || do 'sys/ioctl.ph';
-    require('termcap.pl');
-    $ospeed = 1 unless $ospeed;
-    &Tgetent;
-    $so = &Tputs($TC{'so'});
-    $se = &Tputs($TC{'se'});
+    require Term::Cap;
+    $ospeed = 9600 unless $ospeed;
+    my $terminal = Tgetent Term::Cap { TERM => undef, OSPEED => $ospeed };
+    my $so = $terminal->Tputs('so');
+    my $se = $terminal->Tputs('se');
     ($so, $se, $se, $so);
 }
 sub arheader {
@@ -870,9 +1063,11 @@ sub decode64 {
 
     while ($s_64 =~ s/^(.{1,60})//) {
 	$_ = $1;
-	
+
 	$len = int(length($_) * 3 / 4);
-	if (s/=+$//) { $len -= length($1); }
+	if (s/=+$//) {
+	    $len -= length($1);
+	}
 	tr[A-Za-z0-9+/=][`!-_A];
 
 	$s_uu .= sprintf("%c%s\n", $len + 32, $_);
@@ -882,13 +1077,46 @@ sub decode64 {
 sub chash { $hash > $hash_t && (print STDERR "\n"), $hash = 0 if $hash; }
 sub max { $_[ ($_[$[] < $_[$[+1]) + $[ ]; }
 sub min { $_[ ($_[$[] > $_[$[+1]) + $[ ]; }
+sub pattern_list {
+    my($pattern) = @_;
+    my @list;
+
+    # target string is stored in $_
+    die unless $] >= 5.006; # @- and @+ were incorporated in Perl 5.6
+    my $re = qr/$pattern/m;
+    while (/$re/g) {
+	push(@list, $-[0], $+[0]);
+    }
+    @list;
+}
+sub select_list {
+    my($from, $what, $how) = @_;
+    my @from = @$from;
+    my @what = @$what;
+
+    my(@exclude, @include);
+    while (@from) {
+	while (@what and $what[1] <= $from[0]) {
+	    splice(@what, 0, 2);
+	}
+	if (@what == 0) {
+	    push(@exclude, splice(@from, 0));
+	    last;
+	}
+	while (@from and $from[0] < $what[0]) {
+	    push(@exclude, splice(@from, 0, 2));
+	}
+	while (@from and ($from[0] + $from[1]) <= $what[1]) {
+	    push(@include, splice(@from, 0, 2));
+	}
+	while (@from and $from[0] < $what[1]) {
+	    push(@exclude, splice(@from, 0, 2));
+	}
+    }	
+    $how ? @include : @exclude;
+}
+
 ######################################################################
-
-##------------------------------------------------------------
-## usage.pl: make a string for usage line.
-##
-## $Id: mg,v 5.0.1.2 2002/03/02 09:31:00 utashiro Exp $
-##
 ## Syntax:
 ## &Usage($command, $option, $trailer, @arglist);
 ##	$command: command name (you can use $0 here)
@@ -922,29 +1150,48 @@ sub min { $_[ ($_[$[] > $_[$[+1]) + $[ ]; }
 ##		-d       debug
 ##		-u user  user name
 ##
-sub Mkopts {
-    local($opts);
-    grep(/^([^-]):(.)/ && ($opts .= $1 . ':' x ($2 ne ':')), @_);
-    $opts;
+sub MkoptsLong {
+    my @o;
+    foreach (@_) {
+	my($opt, $arg, $desc) = split(':', $_, 3);
+	if ($arg eq '') {
+	    push(@o, $opt);
+	} elsif ($arg =~ s/^\?//) {
+	    push(@o, "$opt:s");
+	} elsif ($arg =~ s/^\@//) {
+	    push(@o, "$opt=s" => eval '\\@opt_'.$opt);
+	} else {
+	    push(@o, "$opt=s");
+	}
+    }
+    @o;
 }
-sub Usage {
-    package usage; reset('a-z');
-    local($cmd, $opt, $trailer, @arglist) = @_;
-    $opt = &Mkopts(@arglist) unless $opt;
+sub UsageLong {
+    my($cmd, $optref, $trailer, @arglist) = @_;
+    my(@opts, %desc, $width);
+    @$optref = &Mkopts(@arglist) unless $optref;
     for (@arglist) {
-	($name, $arg, $desc) = split(/:/, $_, 3);
+	my($name, $arg, $desc) = split(/:/, $_, 3);
 	$arg =~ s/\|.*//;
 	if ($name eq '-') {
-	    grep($hide{$_}++, split('', $arg)); next;
+	    map($hide{$_}++, split('', $arg));
+	    next;
 	}
 	next if $hide{$name};
 	$arg{$name} = $arg;
 	$desc{$name} = $desc;
-	$w = length($arg) if ($desc && $w < length($arg));
+	if ($desc && $width < (length($name) + length($arg))) {
+	    $width = length($name) + length($arg);
+	}
     }
+    $width += 2;
     $cmd =~ s#.*/##;
     push(@usage, 'usage:', $cmd);
-    while ($opt =~ s/^\s*(.)(:?)//) {
+    for (@$optref) {
+	if (ref($_)) {
+	    next;
+	}
+	m/^([^:=]+)([=:]s)?/ or die "($_)";
 	next if $hide{$1};
 	push(@opts, $1);
 	push(@usage, '[', "-$1");
@@ -953,13 +1200,161 @@ sub Usage {
     }
     push(@usage, $trailer) if $trailer;
     for (grep($desc{$_}, @opts)) {
-	push(@desc, sprintf("\t-%s %-${w}s  %s\n", $_, $arg{$_}, $desc{$_}));
+	my $line = "\t-";
+	my $w = $width;
+	if (length($_) > 1) {
+	    $line .= '-';
+	    $w--;
+	}
+	$line .= sprintf("%-${w}s %s\n", "$_ $arg{$_}", $desc{$_});
+	push(@desc, $line);
     }
     (join(' ', @usage)."\n", join('', @desc));
 }
 1;
 ######################################################################
-
+package PgpFilter;
+
+sub new {
+    my $obj = bless {
+	FH        => undef,
+    }, shift;
+    $obj;
+}
+
+sub initialize {
+    my $obj = shift;
+    my($opt) = @_;
+    my $passphrase;
+
+    if (my $fd = $opt->{passphrase_fd}) {
+	$obj->fh(_openfh($fd));
+    }
+    else {
+	if (not defined $obj->fh) {
+	    $obj->fh(_openfh());
+	}
+	if (defined $obj->{passphrase}) {
+	    $passphrase = $obj->{passphrase};
+	} else {
+	    _readphrase(\$passphrase);
+	}
+	$obj->setphrase(\$passphrase);
+
+	##
+	## Destroy data as much as possible
+	##
+	$passphrase =~ s/./\0/g;
+	$passphrase = "";
+	undef $passphrase;
+    }
+
+    $obj;
+}
+
+sub setphrase {
+    my $obj = shift;
+    my $fh = $obj->fh;
+    my($passphrase_r) = @_;
+    
+    $obj->reset;
+    $fh->syswrite($$passphrase_r, length($$passphrase_r));
+    $obj->reset;
+}
+
+sub fh {
+    my $obj = shift;
+    @_ ? $obj->{FH} = shift
+       : $obj->{FH};
+}
+
+sub pgppassfd {
+    my $obj = shift;
+    $obj->fh->fileno;
+}
+
+sub _decrypt_command {
+    my $obj = shift;
+    sprintf("gpg --quiet --batch --decrypt --passphrase-fd %d",
+	    $obj->pgppassfd);
+}
+
+sub file_viewer {
+    my $obj = shift;
+    sprintf("pgpcat --passphrase-fd %d", $obj->pgppassfd);
+}
+
+sub reset {
+    my $obj = shift;
+    $obj->fh->sysseek(0, 0) or die;
+}
+
+sub _openfh {
+    use Fcntl;
+    use IO::File;
+
+    my($fd) = @_;
+    my $fh;
+
+    if (defined $fd) {
+	$fh = new IO::Handle;
+	$fh->fdopen($fd, "w+");
+    } else {
+	$fh = new_tmpfile IO::File;
+	defined $fh or die "new_tmpefile: $!";
+    }
+
+    $fh->fcntl(F_SETFD, 0) or die "fcntl F_SETFD failed: $!\n";
+
+    return $fh;
+}
+
+sub _readphrase {
+    my($passphrase_r) = @_;
+
+    print STDERR "Enter PGP Passphrase> ";
+    system "stty -echo";
+    $$passphrase_r = <STDIN>;
+    system "stty echo";
+    chomp($$passphrase_r);
+    print STDERR "\n";
+
+    $passphrase_r;
+}
+
+sub decrypt {
+    use IPC::Open2;
+
+    my $obj = shift;
+
+    my($enc_data) = @_;
+    local($/) = undef;
+
+    $obj->reset;
+
+    my $pid = open2(\*RDRFH, \*WTRFH, $pgp->_decrypt_command);
+
+    if (length($enc_data) <= 1024 * 16) {
+	print WTRFH $enc_data;
+    }
+    else {
+	## NO ERROR CHECK! XXX
+	if (fork == 0) {
+	    print WTRFH $enc_data;
+	    close WTRFH;
+	    close RDRFH;
+	    exit;
+	}
+    }
+    close WTRFH;
+    my $dec_data = <RDRFH>;
+    close RDRFH;
+
+    $dec_data;
+}
+
+1;
+######################################################################
 .00 ;
 
 'di			\" finish diversion--previous line must be blank
@@ -969,7 +1364,7 @@ sub Usage {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.2 2002/03/02 09:31:00 utashiro Exp $
+.XX $Id: mg,v 5.0.1.3 2005/01/10 11:44:03 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1028,18 +1423,18 @@ control).  Option \-dcd gives you ongoing status.
 \fIMg\fP is also useful to find a word from Japanese text
 because Japanese words are not separated by whitespaces, and
 newline character can be inserted at any place of the text.
-As a matter of fact, \fImg\fP was made for Japanese string
-search originally.  Any Japanese codes including JIS,
+As a matter of fact, \fImg\fP was originally made for
+Japanese string search.  Any Japanese codes including JIS,
 Shift-JIS, EUC can be handled hopefully, but using JIS code
-disables some features.
+disables some features.  Unicode is not supported (yet).
 .PP
 User should be aware that \fImg\fP doesn't recognize
 character boundaries even if the search string is described
 in any of Japanese code.  So some 2-byte character code may
-match with 2nd byte of one character and 1st byte of next
-one.  Especially when it is encoded in JIS, it may match
+match with second byte of a character and first byte of the
+next.  Especially when it is encoded in JIS, it may match
 some sequence of ASCII string (it may be meaningless string
-in uencode or base64).  From my experience, this is not a
+in uuencode or base64).  From my experience, this is not a
 big problem when searching some meaningful strings, but you
 may get in trouble when looking for short string especially
 single character.
@@ -1064,33 +1459,72 @@ the subject of search.  Option \-A disables this feature
 too.  File name is shown as ``{archive}file''.
 .PP
 .B [HANDLE PGP ENCRYPTED FILE]
-\fIMg\fP can search string from PGP-encrypted file.  It asks PGP
-passphrase only once, and it is inherited to pgp decrypting
-subprocesses.  Use \-k option when you specify pgp file for search.
-Although many people probably want automatic execution of decription
-process depending file contents, it is not supported yet.
+\fIMg\fP can search string from PGP-encrypted file.  When
+option \-\-pgp is specified, PGP passphrase is asked only
+once, and it is inherited to pgp decrypting subprocesses.
+You may want automatic execution of decription process
+depending file contents, but it is not supported yet.
 .PP
 .B [BUFFERING POLICY]
 \fIMg\fP reads some amount of data at once, and the last
 portion of the chunk will be searched again with next chunk
 of data.  Default size of data chunk is 512k.
 Search-again-data size is 2k for both.  So if the matched
-segment size is more than 2K bytes, it may be truncated.
+segment size is more than 2k bytes, it may be truncated.
 This truncation happens only when the file size is more than
 data chunk size, of course.  You can use \-W option to read
-whole file contents at once.  But this slows down the speed
-of execution for large file.  Maximum read and search again
-size can be specified by \-G option.
-.PP
-.B [PERFORMANCE NOTICE]
-This version of \fImg\fP is free from using $`, $& and $'
-only when executed by perl5.  Using these variables makes
-the program much slower when processing large chunk of data.
-Using perl5 doubles the performance when getting many
-matches from large file.
+whole file contents at once.  But it may slow down the
+speed of execution for large file, depending on the
+architecture and configuration of the system.  Maximum read
+and search again size can be specified by \-G option.
 .\"------------------------------------------------------------
-.SH ENVIRONMENT
+.SH ENVIRONMENT and STARTUP FILE
 Environment variable MGOPTS is used as a default options.
+They are inserted before command line options.
+.PP
+Before starting execution, \fImg\fP reads the file named
+``.mgrc'' on user's home directory.  In .mgrc file, user can
+define own option name.  There are two direcives can be used
+in .mgrc file: `option' and `define'.  First argument of
+`option' directive is user defined option name.  The rest
+are processed by \fIshellwords\fP routine defined by
+Text::ParseWords module.
+.nf
+
+	option mh -RT -P '[0-9]*'
+
+.fi
+.PP
+User defininable option is specified by preceeding option
+name by `-:' string.
+.nf
+
+	mg -:mh pattern ~/Mail
+
+.fi
+.PP
+Another directive `define' is almost same as `option', but
+argument is not processed by \fIshellwords\fP and treated
+just a simple text.  You can include metacharacters without
+escaping.
+.nf
+
+	define mails [0-9]*
+	option mh -RT -P -:mails
+
+.fi
+.PP
+When \fImg\fP found `__CODE__' line in .mgrc file, the rest
+of the file is evaluated as a Perl program.  You can define
+your own subroutines which can be used by \-x or \-\-exfunc
+options.  For those subroutines, file content will be
+provided by global variable $_.  Expected response from the
+subroutine is the list of numbers, which is made up by start
+and end offset pairs.
+.PP
+If you do not want to evaluate those programs in all
+invocation of the command, use \-\-require option to include
+arbitrary perl program files.
 .\"------------------------------------------------------------
 .SH OPTIONS
 .LP
@@ -1125,12 +1559,10 @@ flag to \-d option.
 
 	f: processing file name
 	d: processing directory name
+	t: processing file modified time
 	c: count of processing files
 	s: statistic information
 	m: misc debug information
-
-	p: run `ps' command before termination (on Unix)
-
 	p: run `ps' command before termination (on Unix)
 
 .fi
@@ -1343,12 +1775,15 @@ modified within 7 days:
 	find . \-mtime \-7 \-print | mg \-S pattern
 
 .fi
-Next example find the files from the newest first order:
+Next example search the files from the newest first order:
 .nf
 
 	ls -t | mg \-S pattern
 
 .fi
+.IP ""
+You can use \-dt option to monitor modified date of processing
+files.
 .IP \-m 
 Print matched line only when the pattern is across the line.
 .IP \-M 
@@ -1362,7 +1797,15 @@ ignored.
 .IP "\-p pattern"
 Specify search pattern.  You don't have to use this option
 explicitly because the first argument after options will be
-treated as a pattern.
+treated as a pattern.  Typical case of using this option is
+specifying string which can be taken as a command option.
+You can use option terminator \-\- for same purpose.
+.nf
+
+	mg \-p \-p file
+	mg \-\- \-p file
+
+.fi
 .IP \-A
 Disables archive mode search (ar, tar, zip, zoo).
 .IP \-Z 
@@ -1383,6 +1826,14 @@ KATAKANA words used in the Shift-JIS texts.
 .fi
 Note that this command is confused when 2nd byte and 1st
 byte of next chararacter matches KATAKANA pattern.
+.IP ""
+Another example.  If you wonder how the word ``CRC'' is used
+in RFCs, you can do it like this:
+.nf
+
+	mg -h -c0 -J' ' -ei 'Cyclic Redundancy C\ew+' rfc*.txt
+
+.fi
 .IP "\-0\fIdigits\fP"
 Specifies the record separator as an octal number.  It is
 almost same as perl option.  But unlike perl, only the first
@@ -1394,7 +1845,7 @@ archived file, \fImg\fP emulates perl's $/ behaviour.
 Slurp whole file at once.
 .IP "\-G \fImaxreadsize\fP[,\fIkeepsize\fP]"
 Specify maximum read size and keep buffer size for next
-read.  Default values for these sizes are 30K and 2K bytes.
+read.  Default values for these sizes are 512k and 2k bytes.
 \fIMg\fP tries to read a file upto maximum read size at a
 same time.  Last part of the buffer, specified by keep
 buffer size, is not thrown away but will be used as a
@@ -1437,8 +1888,8 @@ Examples:
 	mg \-z '/\e.tar$/:tar tvf \-' pattern *
 .fi
 .IP ""
-If the command doesn't accept stndard input as processing data, you
-may be able to use special device:
+If the command doesn't accept stndard input as processing
+data, you may be able to use special device:
 .nf
 
 	mg \-Qz 'nm /dev/stdin' crypt /usr/lib/lib*.a
@@ -1476,6 +1927,86 @@ output from input filter if \-z option is specified.  So in
 the above example, MIME encoded string is converted into
 ISO-2022-JP even if the input filter was specified to
 convert the all data into EUC.
+.IP "\-\-body"
+Search only from message body.  This is the reverse of \-00
+option; it skips RFC822 message header before string search.
+You can find emails which contains string "Subject" in its
+message body by this command:
+.nf
+
+	mg \-\-body Subject *
+
+.fi
+Otherwise it matches all normal emails.
+.IP "\-\-pgp"
+Invoke PGP decrypt command for all files.  PGP passphrase is
+asked only once at the beginning of command execution.
+.IP "\-\-pgppass"
+You can specify PGP passphrase by this option.  Generally,
+it is not recommended to use.
+.IP "\-\-pcode \fIcode\fP"
+Specify processing Japanese code, that means convert both
+file contents and the search pattern before execution.
+Actually, this is just a shortcut of option combination:
+.nf
+
+	mg \-j \fIcode\fP \-z 'nkf -\fIcode\fP' ...
+
+.fi
+.IP "\-\-exclude \fIpattern\fP"
+Specify the pattern which should be excluded from searching.
+For example, next command searchs string `if' from C source,
+excluding comment part.
+.nf
+
+	mg \-\-exclude '(?s)/\e*.*?\e*/' if *.c
+
+.fi
+Since this option is not implemented by preprecessor, line
+numbers are still correct and excluded part can be included
+in surrounding area by other option such as \-o.
+.IP "\-\-exclude \fI&function\fP"
+If the pattern name begins by ampersand (&) character, it is
+treated as a name of subroutine which returns a list to
+exclude.  Using this option, user can use arbitrary function
+to determine from what part of the text they want to search.
+User defined function is written in .mgrc file or explicitly
+included by \-\-require option.
+.nf
+
+	mg \-\-require mycode.pl \-\-exclude '&myfunc' pattern *
+
+.fi
+Argument can be specified after function name with =
+character.  Next example is equivalent to the above example
+(works on 5.6 or later).
+.nf
+
+	sub myfunc {
+	    my($pattern) = @_;
+	    my @matched;
+	    my $re = qr/$pattern/m;
+	    while (/$re/g) {
+	        push(@matched, $-[0], $+[0]);
+	    }
+	    @matched;
+	}
+
+	mg \-\-exclude '&myfunc=(?s)/\e*.*?\e*/' if *.c
+
+.fi
+\-\-exclude and \-\-include option can be specified
+simultaneously and multiple times.
+.IP "\-\-include \fIpattern\fP"
+Opposite for \-\-exclude.  Next command searchs string `if'
+only from C source comment.
+.nf
+
+	mg \-\-include '(?s)/\e*.*?\e*/' if *.c
+
+.fi
+.IP "\-\-require \fIfilename\fP"
+Include arbitrary perl proram.
 .\"------------------------------------------------------------
 .SH APPENDIX
 You may want to use \fImg\fP(1) instead of \fIgrep\fP(1)
@@ -1508,15 +2039,16 @@ If you are using version 19, use this.
 			    nil grep-regexp-alist))
 
 .fi
+For more recent emacs like version 21, default `grep'
+function takes whole command line.
+.PP
 You have to visit uninterested line by (next-error) when
 surrounding lines are displayed by \-c or \-o option.  Use
 \-s option to avoid this.
 .\"------------------------------------------------------------
 .SH AUTHOR
 .nf
-Kazumasa Utashiro <utashiro@iij.ad.jp>
-Internet Initiative Japan Inc.
-3-13 Kanda Nishiki-cho, Chiyoda-ku, Tokyo 101-0054, Japan
+Kazumasa Utashiro <utashiro@srekcah.org>
 .fi
 .\"------------------------------------------------------------
 .SH "SEE ALSO"
@@ -1528,11 +2060,14 @@ http://www.srekcah.org/~utashiro/perl/scripts/mg/
 .\"------------------------------------------------------------
 .SH BUGS
 .PP
+Option \-l does not work well with \-\-exclude and \-\-include.
+Option \-1 may not, either.
+.PP
 Perl5 look-behind expression can be used but it is treated
-as a bare regex, because look-behind pattern is not allowed
-to be variable length.  Also sinse this special treatmen is
-done be very sinmple method, you can't use braces within
-look-behind pattern.
+as a bare regex, because variable length look-behind pattern
+is not allowed (yet).  Also sinse this special treatment is
+done by very naive mechanism, you can't use braces within
+look-behind pattern.  If you don't like it, please debug.
 .PP
 When using perl older than version 5.6, actual pattern is
 enclosed by parentheses, and it confuses the order of
@@ -1554,7 +2089,7 @@ Not enough space for new option (try undocumented option
 .\"------------------------------------------------------------
 .SH LICENSE
 .PP
-Copyright (c) 1994-2002 Kazumasa Utashiro
+Copyright (c) 1991-2005 Kazumasa Utashiro
 .PP
 Use and redistribution for ANY PURPOSE are granted as long as all
 copyright notices are retained.  Redistribution with modification
