@@ -5,10 +5,10 @@
 ##
 ## mg: multi-line grep
 ##
-## Copyright (c) 1991-2005 Kazumasa Utashiro <utashiro@srekcah.org>
+## Copyright (c) 1991-2011 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.6 2011/04/13 05:05:54 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.7 2011/07/09 02:18:29 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -27,13 +27,20 @@
 ## DISCLAIMED.
 ##
 
-require 5.006;
+require 5.008;
 
 use File::stat;
 my $file_st;	# global File::stat object for current processing file
 
 use Getopt::Long;
 use Text::ParseWords qw(shellwords);
+
+use utf8;
+use Encode;
+use Encode::Guess qw/sjis euc-jp 7bit-jis/;
+
+binmode STDOUT, ':utf8';	# XXX remove hard-coding
+binmode STDERR, ':utf8';	# XXX remove hard-coding
 
 my @opts;
 @opts =('i::ignore case',
@@ -81,7 +88,6 @@ my @opts;
 	'G:#[,#]:maxreadsize and keepsize',
 	'1::print first match only',
 	'j:code:specify Japanese code of file (jis, sjis, euc)',
-	'y::yield to use JIS X0208 alphabet character',
 	'd:flags:display info (f:file d:dir c:count m:misc s:stat)',
 	'-:IYUt:',
 	't::-T takes only ascii files',
@@ -131,7 +137,7 @@ sub set_option {
 	$user_option{$optname} = \@_;
     }
 }
-if (open(MGRC, "$ENV{HOME}/.mgrc")) {
+if (open(MGRC, "<:encoding(utf8)", "$ENV{HOME}/.mgrc")) { # XXX
     while (<MGRC>) {
 	next if /^\s*($|\#)/;
 	if (/^\s*__CODE__\s*$/) {
@@ -164,6 +170,13 @@ if (defined $user_option{default}) {
 }
 if ($ENV{'MGOPTS'}) {
     unshift(@ARGV, shellwords($ENV{'MGOPTS'}));
+}
+
+##
+## Decode @ARGV
+##
+foreach (@ARGV) {
+    $_ = decode 'utf8', $_ unless utf8::is_utf8($_); # XXX
 }
 
 my @SAVEDARGV = @ARGV;
@@ -242,8 +255,6 @@ if ($opt_man) {
 ## setup delimitting character
 if ($opt_C) {
     $delim = sprintf('[\\s%s]', quotemeta($opt_C));
-} elsif ($opt_y && $opt_j eq 'euc') {
-    $delim = '(\s|\\241\\241)';		# JIS X 0208 space
 } else {
     $delim = '\s';
 }
@@ -258,7 +269,7 @@ $rawoptionalseq = quotemeta($optionalseq);
 
 defined($opt_j) && ($opt_j eq 'is') && ($opt_j = 'jis');
 
-sub mkpat {
+sub deprecated_mkpat {
     my($pat, $p) = @_;
     if (defined($opt_j)) {
 	require('jcode.pl');
@@ -289,9 +300,50 @@ sub mkpat {
     length($p) ? ($opt_i ? "(?i)$p" : $p) : undef;
 }
 
+sub mkpat {
+    my($p) = @_;
+
+    if ($opt_e or $opt_E) {
+	$p =~ s{
+		(
+		 \[[^\]]*\]		# character-class
+		 |
+		 \(\?\<[=!][^\)]*\)	# look-behind pattern
+		)
+		|
+		(.)			# normal characters
+	}{
+	    if ($1) {
+		$opt_E ? $1 : $1 . "\\s*";
+	    } else {
+		length(Encode::encode_utf8($2)) > 1 ? &mb($2) : &asc($2)
+	    }
+	}egx;
+    } else {
+	$p =~ s/(.)/length(Encode::encode_utf8($1)) > 1 ? &mb($1) : &asc($1)/eg;
+    }
+
+    $p =~ s/($rawdelim|$rawoptionalseq)+$//;
+    length($p) ? ($opt_i ? "(?i)$p" : $p) : undef;
+}
+
 ## make search pattern
 if ($opt_f) {
-    local(@opt_f) = `cat $opt_f`;
+    my $patterns;
+    if (1) {
+	open(my $fh, '<:encoding(utf8)', $opt_f) or die "$opt_f: $!\n";
+	local $/ = undef;
+	$patterns = <$fh>;
+	close($fh);
+    } else {
+	## Why this code doesn't work ??? XXX
+	open(my $fh, '<', $opt_f) or die "$opt_f: $!\n";
+	local $/ = undef;
+	$patterns = <$fh>;
+	close($fh);
+	$pattenrs = Encode::decode('utf8', $patterns);
+    }
+    my(@opt_f) = $patterns =~ m/(.*)/g;
     @opt_f = grep { !/^#/ } @opt_f;
     for (@opt_f) { s/\n//; }
     $opt_p = join('|', grep($_ = &mkpat($_), @opt_f));
@@ -349,9 +401,6 @@ if (defined($jis)) {
 ##
 $offset = '$-[0]';
 $length = '$+[0] - $-[0]';
-#if ($opt_i) {
-#    $opt_p = "(?i)$opt_p";
-#}
 if ($opt_1) {
     $check = 'if';
     $_g = '';
@@ -376,7 +425,7 @@ if ($opt_Q && ($opt_Y || -t STDOUT)) {
 }
 $nlqsubs = $opt_n ? qq#s/\\n/"$qd\\n\$file".++\$line.":$qe"/ge#
 		  : "s/\\n/$qd\\n\$file$qe/g";
-$nlqsubs = q|s/\\n/++$line;"| . $opt_J . '"/ge' if defined $opt_J;
+$nlqsubs = q|s/\\n/++$line;"| . $opt_J . q|"/ge| if defined $opt_J;
 $nlsubs  = $opt_n ? 's/\\n/"\\n$file".++$line.":"/ge'
 		  : 's/\\n/\\n$file/g';
 &eval("sub nlsubs {
@@ -493,6 +542,9 @@ if ($opt_of) {			# open output filter
     $| = 1;
 }
 
+binmode STDOUT, ':utf8';	# XXX remove hard-coding
+binmode STDERR, ':utf8';	# XXX remove hard-coding
+
 ##
 ## Combine @opt_include and @opt_exclude into single list.
 ##
@@ -575,6 +627,7 @@ sub open_nextfile {
 	if ($filter && $db_p) {
 	    printf STDERR "Filter: \"$filter\" < %s.\n", $file;
 	}
+	binmode STDIN, ':encoding(Guess)';
 	return $file;
     }
     undef;
@@ -1132,21 +1185,7 @@ sub flush {
 sub asc {
     local($_) = @_;
     $opt_E || s/\s/$delim/ || $opt_e || do {
-	if ($opt_y && $opt_j eq 'euc') {
-	    local(@alts) = (quotemeta($_));
-	    if (/[!-~]/) {
-		push(@alts, sprintf("\\%03o\\%03o",
-				    unpack('CC', &asc2x0208($_, 1))));
-	    }
-	    if ($opt_i && /[a-zA-Z]/) {
-		tr[a-zA-Z][A-Za-z];
-		push(@alts, sprintf("\\%03o\\%03o",
-				    unpack('CC', &asc2x0208($_, 1))));
-	    }
-	    $_ = '(' . join('|', @alts) . ')';
-	} else {
-	    $_ = quotemeta($_);
-	}
+	$_ = quotemeta($_);
     };
     $_;
 }
@@ -1154,13 +1193,7 @@ sub mb {
     local($_) = @_;
     local($ret);
 
-    $ret = sprintf("\\%03o\\%03o", unpack('CC', $_));
-
-    if (!$opt_e && $opt_i && $opt_j eq 'euc' && /^\243[\301-\332\341-\372]$/) {
-	tr[\301-\332\341-\372][\341-\372\301-\332];
-	$ret = sprintf("(%s|\\%03o\\%03o)", $ret, unpack('CC', $_));
-    }
-
+    $ret = $_;
     $ret .= $delim unless $opt_E;
     $ret;
 }
@@ -1573,7 +1606,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.6 2011/04/13 05:05:54 utashiro Exp $
+.XX $Id: mg,v 5.0.1.7 2011/07/09 02:18:29 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1584,6 +1617,15 @@ mg \- multi-line grep
 .SH SYNOPSIS
 \fBmg\fP [ \fBoptions\fP ] \fIpattern\fP [ \fIfile\fP ]
 .\"------------------------------------------------------------
+.SH WARNING
+This version is experimental imprementation supporting utf8
+code for search string and target files.  Search string have
+to be described in utf8 in both command line argument and
+pattern file (option \-p).  Also .mgrc file is written
+in utf8.  Any kind of Japanese code can be allowed in search
+target files, but output is fixed in utf8.
+Many fossile code and documentation are remained relating other
+coding system, and they should be removed in the future.
 .SH DESCRIPTION
 \fIMg\fP searches the specified pattern from files or
 standard input and prints lines which contain the search
@@ -1649,9 +1691,7 @@ may get in trouble when looking for short string especially
 single character.
 .PP
 Use \-j option to specify search string code.  Use \-\-if
-option if you want convert file code before search.  Option
-\-y enables to find JIS X 0208 representation of ASCII
-characters (only EUC).
+option if you want convert file code before search.
 .PP
 .B [ARCHIVE SEARCH]
 If the file is archived file by \fIar\fP(1) or \fItar\fP(1)
@@ -1764,7 +1804,7 @@ single character option \-x, to make it posssible using in
 this way:
 .nf
 
-	mg -oeiQxp 'foo bar buz' ...
+	mg \-oeiQxp 'foo bar buz' ...
 
 .fi
 .\"------------------------------------------------------------
@@ -1781,7 +1821,7 @@ are processed by \fIshellwords\fP routine defined by
 Text::ParseWords module.
 .nf
 
-	option mh -RT -P '[0-9]*'
+	option mh \-RT \-P '[0-9]*'
 
 .fi
 .PP
@@ -1789,7 +1829,7 @@ User defininable option is specified by preceeding option
 name by `-:' string.
 .nf
 
-	mg -:mh pattern ~/Mail
+	mg \-:mh pattern ~/Mail
 
 .fi
 .PP
@@ -1800,7 +1840,7 @@ escaping.
 .nf
 
 	define mails [0-9]*
-	option mh -RT -P -:mails
+	option mh \-RT \-P \-:mails
 
 .fi
 .PP
@@ -1811,6 +1851,29 @@ your own subroutines which can be used by \-\-prep,
 file content will be provided by global variable $_.
 Expected response from the subroutine is the list of
 numbers, which is made up by start and end offset pairs.
+.PP
+For example, suppose that the following function is defined
+in your .mgrc file.
+.nf
+
+	__CODE__
+	sub odd_line {
+	    my @list;
+	    my $i;
+	    while (/.*\en/g) {
+	        push(@list, $-[0], $+[0]) if ++$i % 2;
+	    }
+	    @list;
+	}
+
+.fi
+You can use next command to search pattern included in
+odd number lines.
+.nf
+
+	% mg \-\-include &odd_line patten files...
+
+.fi
 .PP
 If you do not want to evaluate those programs in all
 invocation of the command, use \-\-require option to include
@@ -2162,13 +2225,6 @@ pattern and target file, target code can be specified by \-j
 option.  The code should be one of `jis', `sjis' and `euc'.
 Perl library `jcode.pl' has to be installed to use this
 option.
-.IP "\-y"
-When option \-y is specified, JIS X 0208 representation of
-ASCII string is also searched even if the pattern is
-supplied in ASCII.  Currently only EUC encoding is
-supported, and `\-j euc' option is required to enable this
-option.  If the pattern is specified in JIS X 0208 string,
-only JIS X 0208 character is searched.
 .IP "\-\-man"
 Show manual page.
 .IP "\-\-if \fIfilter\fP (or \fIEXP:filter:EXP:filter:...\fP)"
@@ -2387,7 +2443,7 @@ Not enough space for new option (try undocumented option
 .\"------------------------------------------------------------
 .SH LICENSE
 .PP
-Copyright (c) 1991-2005 Kazumasa Utashiro
+Copyright (c) 1991-2011 Kazumasa Utashiro
 .PP
 Use and redistribution for ANY PURPOSE are granted as long as all
 copyright notices are retained.  Redistribution with modification
