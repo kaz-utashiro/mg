@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2011 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.7 2011/07/09 02:18:29 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.8 2011/07/10 00:12:08 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -31,6 +31,7 @@ require 5.008;
 
 use File::stat;
 my $file_st;	# global File::stat object for current processing file
+our $file;	# global variable for processing file name
 
 use Getopt::Long;
 use Text::ParseWords qw(shellwords);
@@ -677,7 +678,7 @@ sub main {
 	}
 
 	$total_files++;
-	($matched, $rest) = eval { &grepfile };
+	($matched, $rest) = &grepfile;
 
 	if ($rest > 0) {
 	    &warn("Unexpected EOF in \"$file\"\n");
@@ -704,16 +705,18 @@ $SIG{'QUIT'} = 'QUIT';
 sub QUIT { die "Interrupted\n"; }
 MAIN: {
     eval { &main };
-    if ($@ =~ /Interrupted/) {	# interrupted
-	if (@ARGV && @dirstack) {
-	    print STDERR "Interrupted\nSKIP ", shift(@dirstack), "\n";
-	    1 while @ARGV && (shift(@ARGV) ne $dirend);
-	    close STDIN; # wait;
-	    open(STDIN, '<&SAVESTDIN');
-	    redo MAIN;
+    if ($@) {
+	if ($@ =~ /Interrupted/) {	# interrupted
+	    if (@ARGV && @dirstack) {
+		print STDERR "Interrupted\nSKIP ", shift(@dirstack), "\n";
+		1 while @ARGV && (shift(@ARGV) ne $dirend);
+	    }
+	} else {
+	    warn "$file: $@";
 	}
-    } elsif ($@) {		# unexpected error has occured
-	die $@;
+	close STDIN; # wait;
+	open(STDIN, '<&SAVESTDIN');
+	redo MAIN;
     }
 }
 &chash;
@@ -1606,7 +1609,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.7 2011/07/09 02:18:29 utashiro Exp $
+.XX $Id: mg,v 5.0.1.8 2011/07/10 00:12:08 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
