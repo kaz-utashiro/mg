@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2011 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.8 2011/07/10 00:12:08 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.9 2013/10/22 09:32:15 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -38,7 +38,8 @@ use Text::ParseWords qw(shellwords);
 
 use utf8;
 use Encode;
-use Encode::Guess qw/sjis euc-jp 7bit-jis/;
+#use Encode::Guess qw/sjis euc-jp 7bit-jis/;
+use Encode::Guess qw/euc-jp 7bit-jis/;
 
 binmode STDOUT, ':utf8';	# XXX remove hard-coding
 binmode STDERR, ':utf8';	# XXX remove hard-coding
@@ -274,7 +275,7 @@ sub deprecated_mkpat {
     my($pat, $p) = @_;
     if (defined($opt_j)) {
 	require('jcode.pl');
-	&jcode'convert(\$pat, $opt_j);
+	&jcode::convert(\$pat, $opt_j);
     }
     for (split(/$shiftcode/, $pat)) {
 	if (/$in/o)  { $jis = 1; $p .= $optionalseq if $p; next; }
@@ -1609,7 +1610,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.8 2011/07/10 00:12:08 utashiro Exp $
+.XX $Id: mg,v 5.0.1.9 2013/10/22 09:32:15 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1621,7 +1622,7 @@ mg \- multi-line grep
 \fBmg\fP [ \fBoptions\fP ] \fIpattern\fP [ \fIfile\fP ]
 .\"------------------------------------------------------------
 .SH WARNING
-This version is experimental imprementation supporting utf8
+This version is experimental implementation supporting utf8
 code for search string and target files.  Search string have
 to be described in utf8 in both command line argument and
 pattern file (option \-p).  Also .mgrc file is written
@@ -1714,7 +1715,7 @@ too.  File name is shown as ``{archive}file''.
 \fIMg\fP can search string from PGP-encrypted file.  When
 option \-\-pgp is specified, PGP passphrase is asked only
 once, and it is inherited to pgp decrypting subprocesses.
-You may want automatic execution of decription process
+You may want automatic execution of decryption process
 depending file contents, but it is not supported yet.
 .PP
 .B [BUFFERING POLICY]
@@ -1739,7 +1740,7 @@ pattern is interpreted in the different manner.
 Pattern string is treated as a colleciton of tokens
 separated by white space.  Each component will be searched
 independently, but only the line which contains all of them
-will be printed.  For examle,
+will be printed.  For example,
 .nf
 
 	mg \-xp 'foo bar buz' ...
@@ -1789,10 +1790,10 @@ but it has no effect.
 .PP
 When executed with \-o option, the paragraph which contains
 all these components will be found.  This style is much more
-usefull, actually.
+useful, actually.
 .PP
 You can't use double quote to include white space within
-each token.  Separate options are prepared to spcify each
+each token.  Separate options are prepared to specify each
 component individually; \-\-\fIand\fP, \-\-\fIor\fP and
 \-\-\fInot\fP.  These options can be used multiple times.
 .nf
@@ -1803,7 +1804,7 @@ component individually; \-\-\fIand\fP, \-\-\fIor\fP and
 .PP
 Long option \-\-\fIxp\fP is equivalent to the combination of
 \-x and (optional) \-p options.  Author decided to override
-single character option \-x, to make it posssible using in
+single character option \-x, to make it possible using in
 this way:
 .nf
 
@@ -1817,7 +1818,7 @@ They are inserted before command line options.
 .PP
 Before starting execution, \fImg\fP reads the file named
 ``.mgrc'' on user's home directory.  In .mgrc file, user can
-define own option name.  There are two direcives can be used
+define own option name.  There are two directives can be used
 in .mgrc file: `option' and `define'.  First argument of
 `option' directive is user defined option name.  The rest
 are processed by \fIshellwords\fP routine defined by
@@ -1828,7 +1829,7 @@ Text::ParseWords module.
 
 .fi
 .PP
-User defininable option is specified by preceeding option
+User definable option is specified by preceding option
 name by `-:' string.
 .nf
 
@@ -1930,7 +1931,7 @@ You may want to use ``\-dcd'' option to monitor what is
 going on during recursive search.
 .IP \-N
 Print byte offset of matched string.  If multiple matching
-occured in one line, only the first matching offset is
+occurred in one line, only the first matching offset is
 printed.  Use \-2 option to avoid it.
 .IP \-e 
 Use the pattern as a regular expression in 
@@ -1969,7 +1970,7 @@ supplied.
 Print n-lines before/after matched line.  Default n is 1,
 which means only one line is displayed.  N is number of
 newlines surrounding matched pattern.  If ``\-c\ 3''
-options is suplied, two lines before and after matched
+options is supplied, two lines before and after matched
 line will be displayed together.  You can see only after
 two lines by ``\-c 1,3'' option.
 .IP ""
@@ -2067,7 +2068,7 @@ matched line.  This option is useful when the filenames are
 very long.
 .IP \-2 
 Usually only one line is displayed even if multiple matching
-occurrs for the same line.  With this option, each match
+occurs for the same line.  With this option, each match
 will be displayed in different line.
 .IP \-R 
 Search recursively.  Only files specified by command line
@@ -2207,12 +2208,12 @@ Slurp whole file at once.
 .IP "\-G \fImaxreadsize\fP[,\fIkeepsize\fP]"
 Specify maximum read size and keep buffer size for next
 read.  Default values for these sizes are 512k and 2k bytes.
-\fIMg\fP tries to read a file upto maximum read size at a
+\fIMg\fP tries to read a file up to maximum read size at a
 same time.  Last part of the buffer, specified by keep
 buffer size, is not thrown away but will be used as a
 subject for search with next buffer.  In arguments, you can
 use B, K, and M for block (512), kilo (1024) and mega (1024
-* 1024) respectively.  Next example sets maxmum read size
+* 1024) respectively.  Next example sets maximum read size
 for 100K and keep buffer size for 10K bytes.
 .nf
 
@@ -2244,7 +2245,7 @@ Examples:
 	mg \-\-if '/\e.tar$/:tar tvf \-' pattern *
 .fi
 .IP ""
-If the command doesn't accept stndard input as processing
+If the command doesn't accept standard input as processing
 data, you may be able to use special device:
 .nf
 
@@ -2252,7 +2253,7 @@ data, you may be able to use special device:
 
 .fi
 .IP ""
-Filters for compressed and gziped file is set by default
+Filters for compressed and gzipped file is set by default
 unless \-Z option is given.  Default action is:
 .nf
 
@@ -2311,14 +2312,14 @@ Actually, this is just a shortcut of option combination:
 .fi
 .IP "\-\-exclude \fIpattern\fP"
 Specify the pattern which should be excluded from searching.
-For example, next command searchs string `if' from C source,
+For example, next command searches string `if' from C source,
 excluding comment part.
 .nf
 
 	mg \-\-exclude '(?s)/\e*.*?\e*/' if *.c
 
 .fi
-Since this option is not implemented by preprecessor, line
+Since this option is not implemented by preprocessor, line
 numbers are still correct and excluded part can be included
 in surrounding area by other option such as \-o.
 .IP "\-\-exclude \fI&function\fP"
@@ -2354,7 +2355,7 @@ character.  Next example is equivalent to the above example
 \-\-exclude and \-\-include option can be specified
 simultaneously and multiple times.
 .IP "\-\-include \fIpattern\fP"
-Opposite for \-\-exclude.  Next command searchs string `if'
+Opposite for \-\-exclude.  Next command searches string `if'
 only from C source comment.
 .nf
 
@@ -2362,7 +2363,7 @@ only from C source comment.
 
 .fi
 .IP "\-\-require \fIfilename\fP"
-Include arbitrary perl proram.
+Include arbitrary perl program.
 .\"------------------------------------------------------------
 .SH APPENDIX
 You may want to use \fImg\fP(1) instead of \fIgrep\fP(1)
@@ -2405,15 +2406,10 @@ surrounding lines are displayed by \-c or \-o option.  Use
 .SH AUTHOR
 .nf
 Kazumasa Utashiro
-http://www.srekcah.org/~utashiro/contact.html
 .fi
 .\"------------------------------------------------------------
 .SH "SEE ALSO"
 grep(1), perl(1)
-.br
-http://www.srekcah.org/~utashiro/perl/scripts/mg/
-.br
-(Sorry, in Japanese...)
 .\"------------------------------------------------------------
 .SH BUGS
 .PP
@@ -2422,14 +2418,14 @@ Option \-1 may not, either.
 .PP
 Perl5 look-behind expression can be used but it is treated
 as a bare regex, because variable length look-behind pattern
-is not allowed (yet).  Also sinse this special treatment is
+is not allowed (yet).  Also since this special treatment is
 done by very naive mechanism, you can't use braces within
 look-behind pattern.  If you don't like it, please debug.
 .PP
 When using perl older than version 5.6, actual pattern is
 enclosed by parentheses, and it confuses the order of
 subexpressions if it contains back-references.  The order is
-fixed automaticaly but you may have some problem for certain
+fixed automatically but you may have some problem for certain
 patterns.  Use \-dm option to check the actual pattern for
 search when you doubt the behavior of this command.
 .PP
