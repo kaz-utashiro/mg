@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2011 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.9 2013/10/22 09:32:15 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.10 2013/10/22 15:51:12 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -38,11 +38,12 @@ use Text::ParseWords qw(shellwords);
 
 use utf8;
 use Encode;
-#use Encode::Guess qw/sjis euc-jp 7bit-jis/;
-use Encode::Guess qw/euc-jp 7bit-jis/;
+#use Encode::Guess qw(shiftjis euc-jp 7bit-jis);
+use Encode::Guess qw(euc-jp 7bit-jis);
 
 binmode STDOUT, ':utf8';	# XXX remove hard-coding
 binmode STDERR, ':utf8';	# XXX remove hard-coding
+our $default_code = 'utf8';	# default input encoding
 
 my @opts;
 @opts =('i::ignore case',
@@ -269,7 +270,13 @@ $shiftcode   = '(' . join('|', @in, @out) . ')';
 $optionalseq = '(?:' . join('|', @in, @out, $opt_C || '\s'). ')*';
 $rawoptionalseq = quotemeta($optionalseq);
 
-defined($opt_j) && ($opt_j eq 'is') && ($opt_j = 'jis');
+if (defined $opt_j) {
+    $opt_j = '7bit-jis' if $opt_j eq 'is' or $opt_j eq 'jis';
+    $opt_j = 'shiftjis' if $opt_j eq 'sjis';
+    $opt_j = 'euc-jp' if $opt_j eq 'euc';
+} else {
+    $opt_j = $default_code;
+}
 
 sub deprecated_mkpat {
     my($pat, $p) = @_;
@@ -629,7 +636,12 @@ sub open_nextfile {
 	if ($filter && $db_p) {
 	    printf STDERR "Filter: \"$filter\" < %s.\n", $file;
 	}
-	binmode STDIN, ':encoding(Guess)';
+
+	if ($opt_j) {
+	    binmode STDIN, ":encoding($opt_j)";
+	} else {
+	    binmode STDIN, ':encoding(Guess)';
+	}
 	return $file;
     }
     undef;
@@ -1610,7 +1622,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.9 2013/10/22 09:32:15 utashiro Exp $
+.XX $Id: mg,v 5.0.1.10 2013/10/22 15:51:12 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1625,11 +1637,12 @@ mg \- multi-line grep
 This version is experimental implementation supporting utf8
 code for search string and target files.  Search string have
 to be described in utf8 in both command line argument and
-pattern file (option \-p).  Also .mgrc file is written
-in utf8.  Any kind of Japanese code can be allowed in search
-target files, but output is fixed in utf8.
-Many fossile code and documentation are remained relating other
-coding system, and they should be removed in the future.
+pattern file (option \-p).  Also .mgrc file is written in
+utf8.  Default file code is also utf8.  Use \-j to specify
+file code and use code name ``Guess'' for automatic code
+recognition.  Many fossile code and documentation are
+remained relating other coding system, and they should be
+removed in the future.
 .SH DESCRIPTION
 \fIMg\fP searches the specified pattern from files or
 standard input and prints lines which contain the search
@@ -1679,9 +1692,9 @@ control).  Option \-dcd gives you ongoing status.
 because Japanese words are not separated by whitespaces, and
 newline character can be inserted at any place of the text.
 As a matter of fact, \fImg\fP was originally made for
-Japanese string search.  Any Japanese codes including JIS,
-Shift-JIS, EUC can be handled hopefully, but using JIS code
-disables some features.  Unicode is not supported (yet).
+Japanese string search.  Any Japanese codes including UTF8,
+JIS, Shift-JIS, EUC can be handled hopefully, but using JIS
+code disables some features.
 .PP
 User should be aware that \fImg\fP doesn't recognize
 character boundaries even if the search string is described
@@ -1694,8 +1707,8 @@ big problem when searching some meaningful strings, but you
 may get in trouble when looking for short string especially
 single character.
 .PP
-Use \-j option to specify search string code.  Use \-\-if
-option if you want convert file code before search.
+Default file code is UTF8.  Use \-j option to specify file
+code, and use \-j Guess for automatic code recognition.
 .PP
 .B [ARCHIVE SEARCH]
 If the file is archived file by \fIar\fP(1) or \fItar\fP(1)
@@ -2224,11 +2237,9 @@ for 100K and keep buffer size for 10K bytes.
 Print first match only.  This option doesn't work well
 with \-a option.
 .IP "\-j \fIcode\fP"
-If you have to use different Japanese codes for search
-pattern and target file, target code can be specified by \-j
-option.  The code should be one of `jis', `sjis' and `euc'.
-Perl library `jcode.pl' has to be installed to use this
-option.
+Default file code is utf8.  Use this option to change file
+encoding from 7bit-jis, euc-jp, shiftjis, or use Guess for
+automatic code recognition.
 .IP "\-\-man"
 Show manual page.
 .IP "\-\-if \fIfilter\fP (or \fIEXP:filter:EXP:filter:...\fP)"
