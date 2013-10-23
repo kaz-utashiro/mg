@@ -3,19 +3,10 @@ MG(1)                                                                    MG(1)
 
 
 NAME
-       mg − multi‐line grep
+       mg - multi-line grep
 
 SYNOPSIS
        mg [ options ] pattern [ file ]
-
-WARNING
-       This  version  is  experimental implementation supporting utf8 code for
-       search string and target files.  Search string have to be described  in
-       utf8  in both command line argument and pattern file (option −p).  Also
-       .mgrc file is written in utf8.  Default file code is also utf8.  Use −j
-       to  specify  file  code  and use code name ‘‘Guess’’ for automatic code
-       recognition.  Many fossile code and documentation are remained relating
-       other coding system, and they should be removed in the future.
 
 DESCRIPTION
        Mg  searches  the  specified  pattern  from files or standard input and
@@ -23,95 +14,87 @@ DESCRIPTION
        function  as  the  Unix  command grep(1) but is distinguished from grep
        because the matching is done across the line boundaries.
 
-       For example, to find a sentence ‘‘internet control  message  protocol’’
+       For example, to find a sentence ``internet control  message  protocol''
        from many RFC texts, you can say
 
-            mg −i ’internet control message protocol’ *.txt
+            mg -i 'internet control message protocol' *.txt
 
-       Match will occur for sequence of words ‘internet’, ‘control’, ‘message’
-       and ‘protocol’ separated by any number of whitespace characters includ‐
-       ing newline and null string (−w option avoids null matching).
+       Match will occur for sequence of words `internet', `control', `message'
+       and `protocol' separated by any number of whitespace characters includ-
+       ing newline and null string (-w option avoids null matching).
 
-       [COMPRESSED FILE SEARCH] If the file has ‘.Z’ or ‘.gz’ suffix, the data
-       is automatically uncompressed on the fly before search.  Use −Z  option
+       [COMPRESSED FILE SEARCH] If the file has `.Z' or `.gz' suffix, the data
+       is automatically uncompressed on the fly before search.  Use -Z  option
        to  suppress  this  operation.   Because this mechanism is supported in
        generric framework, any kind of suffix and  preprocessor  pair  can  be
-       defined by −−if option, which also allows to give default input filter.
-       Output filter is specified by −−of option.
+       defined by --if option, which also allows to give default input filter.
+       Output filter is specified by --of option.
 
        [EMPHASIZING and BLOCK SEARCH] To emphasize the matched part  of  text,
-       −Q,  −u  and  −b options are supported.  This is useful especially used
-       with block search options.  Option −c gives the number  of  surrounding
-       lines  to be shown along with matched line.  Option −o prints the para‐
-       graph containing matched text.  Containing page is with −g, and  entire
-       text is printed with −a option.
+       -Q,  -u  and  -b options are supported.  This is useful especially used
+       with block search options.  Option -c gives the number  of  surrounding
+       lines  to be shown along with matched line.  Option -o prints the para-
+       graph containing matched text.  Containing page is with -g, and  entire
+       text is printed with -a option.
 
-       [RECURSIVE  SEARCH]  Mg  supports  recursive  directory search.  Use −R
-       option to enable it.  This option can be combined with  −T  (text  only
-       search),  −B  (binary  data  search),  −P/V  (file  name  pattern),  −D
-       (descending level), −F (symbolic link control).  Option −dcd gives  you
+       [RECURSIVE  SEARCH]  Mg  supports  recursive  directory search.  Use -R
+       option to enable it.  This option can be combined with  -T  (text  only
+       search),  -B  (binary  data  search),  -P/V  (file  name  pattern),  -D
+       (descending level), -F (symbolic link control).  Option -dcd gives  you
        ongoing status.
 
        [JAPANESE STRING SEARCH] Mg is also useful to find a word from Japanese
-       text because Japanese words are not separated by whitespaces, and  new‐
+       text because Japanese words are not separated by whitespaces, and  new-
        line  character  can be inserted at any place of the text.  As a matter
-       of fact, mg was  originally  made  for  Japanese  string  search.   Any
-       Japanese codes including UTF8, JIS, Shift‐JIS, EUC can be handled hope‐
-       fully, but using JIS code disables some features.
+       of fact, mg was originally made for Japanese string search.
 
-       User should be aware that mg  doesn’t  recognize  character  boundaries
-       even  if  the  search  string is described in any of Japanese code.  So
-       some 2‐byte character code may match with second byte  of  a  character
-       and  first  byte of the next.  Especially when it is encoded in JIS, it
-       may match some sequence of ASCII string (it may be  meaningless  string
-       in  uuencode or base64).  From my experience, this is not a big problem
-       when searching some meaningful strings, but you may get in trouble when
-       looking for short string especially single character.
+       [MULTIBYTE CODE SET HANDLING] Search string have  to  be  described  in
+       utf8  in both command line argument and pattern file (option -p).  Also
+       .mgrc file should be written in utf8.  Default file code is also  utf8.
+       Use --icode option to specify file code and use code name ``guess'' for
+       automatic code recognition.  Use --ocode option to specify output code.
 
-       Default file code is UTF8.  Use −j option to specify file code, and use
-       −j Guess for automatic code recognition.
-
-       [ARCHIVE SEARCH] If the file is archived file by ar(1) or  tar(1)  com‐
+       [ARCHIVE  SEARCH]  If the file is archived file by ar(1) or tar(1) com-
        mand, each file in the archive will be searched individually.  The file
-       name  is  shown  like  ‘‘(archive)file’’  for  ar  format  and   ‘‘[ar‐
-       chive]file’’  for  tar format.  This function works for compressed file
-       of course.  Use −A option if you want to search  from  entire  archived
+       name   is  shown  like  ``(archive)file''  for  ar  format  and  ``[ar-
+       chive]file'' for tar format.  This function works for  compressed  file
+       of  course.   Use  -A option if you want to search from entire archived
        file.
 
-       If the file has ‘.zip’ or ‘.lzh’ suffix, the file is treated as zip and
+       If the file has `.zip' or `.lzh' suffix, the file is treated as zip and
        lha archive respectively and each file contained in the archive will be
-       the subject of search.  Option −A disables this feature too.  File name
-       is shown as ‘‘{archive}file’’.
+       the subject of search.  Option -A disables this feature too.  File name
+       is shown as ``{archive}file''.
 
-       [HANDLE PGP ENCRYPTED FILE] Mg can  search  string  from  PGP‐encrypted
-       file.   When  option  −−pgp  is specified, PGP passphrase is asked only
+       [HANDLE  PGP  ENCRYPTED  FILE]  Mg can search string from PGP-encrypted
+       file.  When option --pgp is specified, PGP  passphrase  is  asked  only
        once, and it is inherited to pgp decrypting subprocesses.  You may want
-       automatic  execution of decryption process depending file contents, but
+       automatic execution of decryption process depending file contents,  but
        it is not supported yet.
 
-       [BUFFERING POLICY] Mg reads some amount of data at once, and  the  last
-       portion  of  the  chunk will be searched again with next chunk of data.
-       Default size of data chunk is 512k.  Search‐again‐data size is  2k  for
-       both.   So if the matched segment size is more than 2k bytes, it may be
-       truncated.  This truncation happens only when the  file  size  is  more
-       than  data  chunk size, of course.  You can use −W option to read whole
+       [BUFFERING  POLICY]  Mg reads some amount of data at once, and the last
+       portion of the chunk will be searched again with next  chunk  of  data.
+       Default  size  of data chunk is 512k.  Search-again-data size is 2k for
+       both.  So if the matched segment size is more than 2k bytes, it may  be
+       truncated.   This  truncation  happens  only when the file size is more
+       than data chunk size, of course.  You can use -W option to  read  whole
        file contents at once.  But it may slow down the speed of execution for
-       large file, depending on the architecture and configuration of the sys‐
-       tem.  Maximum read and search again size can be specified by −G option.
+       large file, depending on the architecture and configuration of the sys-
+       tem.  Maximum read and search again size can be specified by -G option.
 
 EXTENDED PATTERN SEARCH
-       Mg  now supports completely new search method.  This feature is invoked
-       by −x flag, and then the specified pattern is interpreted in  the  dif‐
+       Mg now supports completely new search method.  This feature is  invoked
+       by  -x  flag, and then the specified pattern is interpreted in the dif-
        ferent manner.
 
-       Pattern  string is treated as a colleciton of tokens separated by white
-       space.  Each component will be searched  independently,  but  only  the
+       Pattern string is treated as a colleciton of tokens separated by  white
+       space.   Each  component  will  be searched independently, but only the
        line which contains all of them will be printed.  For example,
 
-            mg −xp ’foo bar buz’ ...
+            mg -xp 'foo bar buz' ...
 
-       will print lines which contain all of ‘foo’, ‘bar’ and ‘buz’.  They can
-       be found in any order and/or any place in the string.  So this  command
+       will print lines which contain all of `foo', `bar' and `buz'.  They can
+       be  found in any order and/or any place in the string.  So this command
        find all of following texts.
 
             foo bar buz
@@ -119,84 +102,84 @@ EXTENDED PATTERN SEARCH
             the foo, bar and buz
 
 
-       If  you  want  to  use  OR  syntax, prepend question (‘?’) sign on each
+       If you want to use OR syntax,  prepend  question  (`?')  sign  on  each
        token, or use regular expression in pattern:
 
-            mg −xp ’foo bar buz ?yabba ?dabba ?doo’
-            mg −exp ’foo bar buz yabba|dabba|doo’
+            mg -xp 'foo bar buz ?yabba ?dabba ?doo'
+            mg -exp 'foo bar buz yabba|dabba|doo'
 
-       This command will print the line which contains all of ‘foo’, ‘bar’ and
-       ‘buz’  and  one  or more from ‘yabba’, ‘dabba’ or ‘doo’.  Note that you
-       need to use −e option to enable regular expression interpretation.
+       This command will print the line which contains all of `foo', `bar' and
+       `buz' and one or more from `yabba', `dabba' or `doo'.   Note  that  you
+       need to use -e option to enable regular expression interpretation.
 
-       Please be aware that multiple ‘?’ preceded tokens are treated all mixed
-       together.   That means ‘?A|B ?C|D’ is equivalent to ‘?A|B|C|D’.  If you
-       want to mean ‘(A or B) and (C or D)’, use AND  syntax  instead  of  OR:
-       ‘A|B C|D’.
+       Please be aware that multiple `?' preceded tokens are treated all mixed
+       together.  That means `?A|B ?C|D' is equivalent to `?A|B|C|D'.  If  you
+       want  to  mean  `(A  or B) and (C or D)', use AND syntax instead of OR:
+       `A|B C|D'.
 
-       NOT  operator  can  be  specified by prefixing the token by minus (‘‐’)
-       sign.  Next example will show the line which  contain  both  ‘foo’  and
-       ‘bar’ but none of ‘yabba’ or ‘dabba’ or ‘doo’.
+       NOT operator can be specified by prefixing the  token  by  minus  (`-')
+       sign.   Next  example  will  show the line which contain both `foo' and
+       `bar' but none of `yabba' or `dabba' or `doo'.
 
-            mg −xp ’foo bar ‐yabba ‐dabba ‐doo’
-            mg −exp ’foo bar ‐yabba|dabba|doo’
+            mg -xp 'foo bar -yabba -dabba -doo'
+            mg -exp 'foo bar -yabba|dabba|doo'
 
-       It  is  ok to set plus (‘+’) sign before positive AND token, but it has
+       It is ok to set plus (`+') sign before positive AND token, but  it  has
        no effect.
 
-       When executed with −o option, the paragraph which  contains  all  these
+       When  executed  with  -o option, the paragraph which contains all these
        components will be found.  This style is much more useful, actually.
 
-       You  can’t  use  double quote to include white space within each token.
-       Separate options are prepared to specify each  component  individually;
-       −−and, −−or and −−not.  These options can be used multiple times.
+       You can't use double quote to include white space  within  each  token.
+       Separate  options  are prepared to specify each component individually;
+       --and, --or and --not.  These options can be used multiple times.
 
-            mg −−and ’foo bar’ −−and buz −−or ’yabba dabba’ −−or doo ...
+            mg --and 'foo bar' --and buz --or 'yabba dabba' --or doo ...
 
 
-       Long  option −−xp is equivalent to the combination of −x and (optional)
-       −p options.  Author decided to override single character option −x,  to
+       Long option --xp is equivalent to the combination of -x and  (optional)
+       -p  options.  Author decided to override single character option -x, to
        make it possible using in this way:
 
-            mg −oeiQxp ’foo bar buz’ ...
+            mg -oeiQxp 'foo bar buz' ...
 
 
 ENVIRONMENT and STARTUP FILE
-       Environment  variable  MGOPTS  is  used as a default options.  They are
+       Environment variable MGOPTS is used as a  default  options.   They  are
        inserted before command line options.
 
-       Before starting execution, mg reads the file named ‘‘.mgrc’’ on  user’s
+       Before  starting execution, mg reads the file named ``.mgrc'' on user's
        home directory.  In .mgrc file, user can define own option name.  There
-       are two directives can be used in .mgrc file:  ‘option’  and  ‘define’.
-       First  argument of ‘option’ directive is user defined option name.  The
-       rest are processed by shellwords routine  defined  by  Text::ParseWords
+       are  two  directives  can be used in .mgrc file: `option' and `define'.
+       First argument of `option' directive is user defined option name.   The
+       rest  are  processed  by shellwords routine defined by Text::ParseWords
        module.
 
-            option mh −RT −P ’[0‐9]*’
+            option mh -RT -P '[0-9]*'
 
 
-       User  definable  option  is  specified by preceding option name by ‘‐:’
+       User definable option is specified by preceding  option  name  by  `-:'
        string.
 
-            mg −:mh pattern ~/Mail
+            mg -:mh pattern ~/Mail
 
 
-       Another directive ‘define’ is almost same as ‘option’, but argument  is
-       not  processed  by  shellwords and treated just a simple text.  You can
+       Another  directive `define' is almost same as `option', but argument is
+       not processed by shellwords and treated just a simple  text.   You  can
        include metacharacters without escaping.
 
-            define mails [0‐9]*
-            option mh −RT −P −:mails
+            define mails [0-9]*
+            option mh -RT -P -:mails
 
 
-       When mg found ‘__CODE__’ line in .mgrc file, the rest of  the  file  is
+       When  mg  found  `__CODE__' line in .mgrc file, the rest of the file is
        evaluated as a Perl program.  You can define your own subroutines which
-       can be used by −−prep, −−include, −−exclude options.  For those subrou‐
-       tines,  file  content will be provided by global variable $_.  Expected
-       response from the subroutine is the list of numbers, which is  made  up
+       can be used by --prep, --include, --exclude options.  For those subrou-
+       tines, file content will be provided by global variable  $_.   Expected
+       response  from  the subroutine is the list of numbers, which is made up
        by start and end offset pairs.
 
-       For  example,  suppose  that  the following function is defined in your
+       For example, suppose that the following function  is  defined  in  your
        .mgrc file.
 
             __CODE__
@@ -204,51 +187,51 @@ ENVIRONMENT and STARTUP FILE
                 my @list;
                 my $i;
                 while (/.*\n/g) {
-                    push(@list, $‐[0], $+[0]) if ++$i % 2;
+                    push(@list, $-[0], $+[0]) if ++$i % 2;
                 }
                 @list;
             }
 
-       You can use next command to  search  pattern  included  in  odd  number
+       You  can  use  next  command  to  search pattern included in odd number
        lines.
 
-            % mg −−include &odd_line patten files...
+            % mg --include &odd_line patten files...
 
 
-       If  you do not want to evaluate those programs in all invocation of the
-       command, use −−require option to include arbitrary perl program  files.
+       If you do not want to evaluate those programs in all invocation of  the
+       command,  use --require option to include arbitrary perl program files.
 
 OPTIONS
        GREP COMPATIBLE OPTIONS:
 
-       −i     Ignore case.
+       -i     Ignore case.
 
-       −l     List filename only.
+       -l     List filename only.
 
-       −n     Show line number.
+       -n     Show line number.
 
-       −h     Do  not  display filenames even if multiple filenames are speci‐
+       -h     Do not display filenames even if multiple filenames  are  speci-
               fied by command line.
 
-       −H     Display filename even if single file  is  specified  by  command
+       -H     Display  filename  even  if  single file is specified by command
               line.
 
        SLIGHTLY DIFFERENT OPTIONS:
 
-       −w     Word  sensitive.   Match occurs only when both beginning and end
-              of pattern is on word boundary.  Also space  characters  in  the
-              pattern doesn’t match to the null string.
+       -w     Word sensitive.  Match occurs only when both beginning  and  end
+              of  pattern  is  on word boundary.  Also space characters in the
+              pattern doesn't match to the null string.
 
-       −v pattern
-              Skip  the line if matched with pattern.  Don’t print the matched
+       -v pattern
+              Skip the line if matched with pattern.  Don't print the  matched
               line if it matched the pattern specified with this option.  This
-              option doesn’t have any effect when used with −a or −l option.
+              option doesn't have any effect when used with -a or -l option.
 
        OTHER OPTIONS:
 
-       −d flags
-              Display  informations.  Various kind of debug, diagnostic, moni‐
-              tor information can be display by giving appropriate flag to  −d
+       -d flags
+              Display informations.  Various kind of debug, diagnostic,  moni-
+              tor  information can be display by giving appropriate flag to -d
               option.
 
                    f: processing file name
@@ -258,377 +241,377 @@ OPTIONS
                    s: statistic information
                    m: misc debug information
                    o: option related information
-                   p: run ‘ps’ command before termination (on Unix)
+                   p: run `ps' command before termination (on Unix)
 
-              You  may want to use ‘‘−dcd’’ option to monitor what is going on
+              You may want to use ``-dcd'' option to monitor what is going  on
               during recursive search.
 
-       −N     Print byte offset  of  matched  string.   If  multiple  matching
+       -N     Print  byte  offset  of  matched  string.   If multiple matching
               occurred in one line, only the first matching offset is printed.
-              Use −2 option to avoid it.
+              Use -2 option to avoid it.
 
-       −e     Use the pattern as a regular expression in perl(1) but space  is
-              treated  specially.   With  this  option,  you  can  use mg like
+       -e     Use  the pattern as a regular expression in perl(1) but space is
+              treated specially.  With  this  option,  you  can  use  mg  like
               egrep(1) like this:
 
-                   mg −e ’foo bar|goo car|hoo dar’ ...
+                   mg -e 'foo bar|goo car|hoo dar' ...
 
-              See perl(1) for detail of regular expression.  Slash  characters
-              (/) in expression don’t have to be escaped.
+              See  perl(1) for detail of regular expression.  Slash characters
+              (/) in expression don't have to be escaped.
 
-              Option −w puts \b’s at the beginning and the end of the pattern.
-              So the pattern ‘‘foo|bar’’ becomes ‘‘\bfoo|bar\b’’.  You  proba‐
-              bly want to use ‘‘foo\b|\bbar’’ instead.
+              Option -w puts \b's at the beginning and the end of the pattern.
+              So  the pattern ``foo|bar'' becomes ``\bfoo|bar\b''.  You proba-
+              bly want to use ``foo\b|\bbar'' instead.
 
-       −E     Use the pattern as regular expression in perl completely.
+       -E     Use the pattern as regular expression in perl completely.
 
-       −r     Specify  restriction  pattern.   A  file  becomes  a subject for
-              search only when the pattern specified by −r option is found  in
+       -r     Specify restriction pattern.   A  file  becomes  a  subject  for
+              search  only when the pattern specified by -r option is found in
               the file.  Next two examples are equivalent.
 
-                   mg −e ^Subject: ‘mg −le "^From: lwall" *‘
+                   mg -e ^Subject: `mg -le "^From: lwall" *`
 
-                   mg −er ’^From: lwall’ ^Subject: *
+                   mg -er '^From: lwall' ^Subject: *
 
-              File will be swallowed at one time even if −W option is not sup‐
+              File will be swallowed at one time even if -W option is not sup-
               plied.
 
-       −c n[,n]
-              Print n‐lines before/after matched line.  Default n is 1,  which
-              means  only one line is displayed.  N is number of newlines sur‐
-              rounding matched pattern.  If ‘‘−c 3’’ options is supplied,  two
-              lines  before and after matched line will be displayed together.
-              You can see only after two lines by ‘‘−c 1,3’’ option.
+       -c n[,n]
+              Print  n-lines before/after matched line.  Default n is 1, which
+              means only one line is displayed.  N is number of newlines  sur-
+              rounding  matched pattern.  If ``-c 3'' options is supplied, two
+              lines before and after matched line will be displayed  together.
+              You can see only after two lines by ``-c 1,3'' option.
 
-              Option −c0 displays matched string only.  Next example is almost
-              equivalent to strings(1) command with −oa option.
+              Option -c0 displays matched string only.  Next example is almost
+              equivalent to strings(1) command with -oa option.
 
-                   mg −NEc0 ’[ \t\040‐\176]{4,}’ file
+                   mg -NEc0 '[ \t\040-\176]{4,}' file
 
 
-       −o     Print  the paragraph which contains the pattern.  Each paragraph
-              is delimited by two or more  successive  newline  characters  by
+       -o     Print the paragraph which contains the pattern.  Each  paragraph
+              is  delimited  by  two  or more successive newline characters by
               default.  Be aware that an empty line is not paragraph delimiter
               if which contains space characters.  Example:
 
-                   mg −nQo ’setuid script’ /usr/man/catl/perl.l
+                   mg -nQo 'setuid script' /usr/man/catl/perl.l
 
-                   mg −o sockaddr /usr/include/sys/socket.h
+                   mg -o sockaddr /usr/include/sys/socket.h
 
-              If −c option is also supplied and there are more  lines  in  the
+              If  -c  option  is also supplied and there are more lines in the
               paragraph, continuous mark is displayed.
 
-       −O string
-              Specify paragraph delimiter string as well as activate the para‐
-              graph mode.  The contents of string is evaluated  as  is  inside
-              double‐quote  not as a regular expression.  For example, you can
+       -O string
+              Specify paragraph delimiter string as well as activate the para-
+              graph  mode.   The  contents of string is evaluated as is inside
+              double-quote not as a regular expression.  For example, you  can
               get lines between troff macros like this:
 
-                   mg −QoO "\n." ’setuid script’ /usr/man/manl/perl.l
+                   mg -QoO "\n." 'setuid script' /usr/man/manl/perl.l
 
 
-       −g lines
+       -g lines
               Page mode.  Provided number of lines for each pages, pages which
-              contains  the  pattern  will be displayed.  For example, you can
-              get pages which contain some strings  from  nroff’ed  text  like
+              contains the pattern will be displayed.  For  example,  you  can
+              get  pages  which  contain  some strings from nroff'ed text like
               this:
 
-                   mg −Q −g 66 ’setuid script’ /usr/man/catl/perl.l
+                   mg -Q -g 66 'setuid script' /usr/man/catl/perl.l
 
-              You  can’t  use  −c with this option.  Formfeed is not supported
+              You can't use -c with this option.  Formfeed  is  not  supported
               currently.
 
-       −C chars
-              Continuous character.  If you want search sentence continued  by
-              other  than white space characters, continuous characters can be
+       -C chars
+              Continuous  character.  If you want search sentence continued by
+              other than white space characters, continuous characters can  be
               set by this options.  For example, next command finds a sentence
-              even if it is quoted by ‘>’ or ‘|’ mark.
+              even if it is quoted by `>' or `|' mark.
 
-                   mg −C ’>|’ ’ninja shogun fujiyama’ ‘mhpath all‘
+                   mg -C '>|' 'ninja shogun fujiyama' `mhpath all`
 
               To search a pattern in C style comments:
 
-                   mg −C ’/*’ ’setuid scripts’ perl.c
+                   mg -C '/*' 'setuid scripts' perl.c
 
 
-              Note  that continuous characters don’t have to be found only top
-              of the string.  So ‘‘foo bar’’ matches a string ‘‘foo>>bar’’  on
+              Note that continuous characters don't have to be found only  top
+              of  the string.  So ``foo bar'' matches a string ``foo>>bar'' on
               the previous example.
 
-       −u     Underline  matched string.  Makes a matched string underlined by
-              precede each character by ‘‘_^H’’.
+       -u     Underline matched string.  Makes a matched string underlined  by
+              precede each character by ``_^H''.
 
-       −b     Make bold matched string.  Makes  a  matched  string  overstruck
-              like ‘‘f^Hfo^Hoo^Ho’’.
+       -b     Make  bold  matched  string.   Makes a matched string overstruck
+              like ``f^Hfo^Hoo^Ho''.
 
-       −Q     Use  a  stand‐out  feature  of the terminal to quote the matched
-              string (not for JIS).  This option is ignored when the  standard
-              output is not a terminal.  −Q is useful for long line.  Try
+       -Q     Use a stand-out feature of the terminal  to  quote  the  matched
+              string  (not for JIS).  This option is ignored when the standard
+              output is not a terminal.  -Q is useful for long line.  Try
 
-                   echo $path | mg −Q mh
+                   echo $path | mg -Q mh
 
 
-       −a     Print all contents of the file.  This option makes sense only if
-              used with options like −Q, −u, −b,  otherwise  it  behaves  like
+       -a     Print all contents of the file.  This option makes sense only if
+              used  with  options  like  -Q, -u, -b, otherwise it behaves like
               cat(1).  Filenames and lines are not printed with this option.
 
-       −s     When multiple files are specified, each matched line is preceded
-              by ‘‘filename:’’ string.  With this option, a newline  character
-              is  inserted between the filename and matched line.  This option
+       -s     When multiple files are specified, each matched line is preceded
+              by  ``filename:'' string.  With this option, a newline character
+              is inserted between the filename and matched line.  This  option
               is useful when the filenames are very long.
 
-       −2     Usually only one line is displayed  even  if  multiple  matching
-              occurs  for the same line.  With this option, each match will be
+       -2     Usually  only  one  line  is displayed even if multiple matching
+              occurs for the same line.  With this option, each match will  be
               displayed in different line.
 
-       −R     Search recursively.  Only files specified by command line  argu‐
-              ments  are  searched  by default.  When invoked with this option
-              and arguments contain a directory, it is  searched  recursively.
-              Usually used with −P or −T option.
+       -R     Search  recursively.  Only files specified by command line argu-
+              ments are searched by default.  When invoked  with  this  option
+              and  arguments  contain a directory, it is searched recursively.
+              Usually used with -P or -T option.
 
-       −D level
-              Descending directory level.  This option specifies how many lev‐
+       -D level
+              Descending directory level.  This option specifies how many lev-
               els of directory is to be searched from top directory.
 
-       −P pattern
+       -P pattern
               Search file pattern.  When directories are searched recursively,
-              only  files which match the ‘pattern’ are searched.  A ‘pattern’
-              is specified in wildcard format same as shell and ‘|’  character
-              can  be  used for alternative in addition.  For example, you can
-              find a string ‘‘foobar’’ from all C source files  and  makefiles
+              only files which match the `pattern' are searched.  A  `pattern'
+              is  specified in wildcard format same as shell and `|' character
+              can be used for alternative in addition.  For example,  you  can
+              find  a  string ``foobar'' from all C source files and makefiles
               like this:
 
-                   mg −RP ’*.c|[Mm]akefile’ foobar /usr/src
+                   mg -RP '*.c|[Mm]akefile' foobar /usr/src
 
 
-       −V pattern
-              Exception  file  pattern.   This  is  a counterpart of −P.  Only
+       -V pattern
+              Exception file pattern.  This is  a  counterpart  of  -P.   Only
               files which DO NOT match the pattern will be searched.
 
-                   mg −RV ’*.[oas]’ foobar /usr/src
+                   mg -RV '*.[oas]' foobar /usr/src
 
 
-              Note that the −V option is also  applied  to  a  directory  name
-              while  −P  option has an effect only for a file.  This means you
-              can specify a directory name to skip, but can’t specify a direc‐
+              Note  that  the  -V  option  is also applied to a directory name
+              while -P option has an effect only for a file.  This  means  you
+              can specify a directory name to skip, but can't specify a direc-
               tory name to search.
 
-       −F     Follow symbolic link of a directory.  Doesn’t follow by default.
+       -F     Follow symbolic link of a directory.  Doesn't follow by default.
 
-       −T     Search text file only.  Binary file is skipped with this option.
-              Decision is made by original method, not by perl operator −T, so
-              that Japanese SJIS and EUC text is taken as text  file.  See  −B
+       -T     Search text file only.  Binary file is skipped with this option.
+              Decision is made by original method, not by perl operator -T, so
+              that  Japanese  SJIS  and EUC text is taken as text file. See -B
               option.
 
-       −B     Find  string  from  binary file.  Only printable characters sur‐
-              rounding matched pattern are printed.  If both  −T  and  −B  are
-              supplied,  text  file is searched in normal mode and binary file
-              is searched in binary mode.  Next example is almost the same  as
+       -B     Find string from binary file.  Only  printable  characters  sur-
+              rounding  matched  pattern  are  printed.  If both -T and -B are
+              supplied, text file is searched in normal mode and  binary  file
+              is  searched in binary mode.  Next example is almost the same as
               what(1).
 
-                   mg −Bc0,1 ’@(#)’ /bin/awk
+                   mg -Bc0,1 '@(#)' /bin/awk
 
 
-       −L     Print formfeed between each matchings.  Print the formfeed char‐
-              acter before each matched line.  This  options  is  useful  when
-              used with −c option and piped to pager command.
+       -L     Print formfeed between each matchings.  Print the formfeed char-
+              acter  before  each  matched  line.  This options is useful when
+              used with -c option and piped to pager command.
 
-       −S     Get  filenames from standard input.  Read standard input and use
-              each line as a filename for searching.  You can feed the  output
-              from  other  command like find(1) for mg with this option.  Next
+       -S     Get filenames from standard input.  Read standard input and  use
+              each  line as a filename for searching.  You can feed the output
+              from other command like find(1) for mg with this  option.   Next
               example searches string from files modified within 7 days:
 
-                   find . −mtime −7 −print | mg −S pattern
+                   find . -mtime -7 -print | mg -S pattern
 
               Next example search the files from the newest first order:
 
-                   ls ‐t | mg −S pattern
+                   ls -t | mg -S pattern
 
 
-              You can use −dt option to monitor modified  date  of  processing
+              You  can  use  -dt option to monitor modified date of processing
               files.
 
-       −m     Print matched line only when the pattern is across the line.
+       -m     Print matched line only when the pattern is across the line.
 
-       −M     Print  matched line only when multiple matching occurred for the
+       -M     Print matched line only when multiple matching occurred for  the
               same line.
 
-       −f file
-              Specify the file which contains search pattern.  When file  con‐
-              tains  multiple  lines,  patterns on each lines are search in OR
+       -f file
+              Specify  the file which contains search pattern.  When file con-
+              tains multiple lines, patterns on each lines are  search  in  OR
               context.  The line starting with sharp (#) character is ignored.
 
-       −p pattern
-              Specify  search  pattern.   You  don’t  have  to use this option
-              explicitly because the first  argument  after  options  will  be
-              treated  as  a  pattern.   Typical  case of using this option is
-              specifying string which can be taken as a command  option.   You
-              can use option terminator −− for same purpose.
+       -p pattern
+              Specify search pattern.  You  don't  have  to  use  this  option
+              explicitly  because  the  first  argument  after options will be
+              treated as a pattern.  Typical case  of  using  this  option  is
+              specifying  string  which can be taken as a command option.  You
+              can use option terminator -- for same purpose.
 
-                   mg −p −p file
-                   mg −− −p file
+                   mg -p -p file
+                   mg -- -p file
 
 
-       −A     Disables archive mode search (ar, tar, zip).
+       -A     Disables archive mode search (ar, tar, zip).
 
-       −Z     Disables automatic uncompress, gunzip.
+       -Z     Disables automatic uncompress, gunzip.
 
-       −J string
+       -J string
               Convert newline character(s) found in matched string to specifed
-              string.  Using −J with −c0 option,  you  can  collect  searching
-              sentence  list in one per line form.  This is almost useless for
-              English text but sometimes useful for Japanese text.  For  exam‐
-              ple  next  command prints the list of KATAKANA words used in the
-              Shift‐JIS texts.
+              string.   Using  -J  with  -c0 option, you can collect searching
+              sentence list in one per line form.  This is almost useless  for
+              English  text but sometimes useful for Japanese text.  For exam-
+              ple next command prints the list of KATAKANA words used  in  the
+              Shift-JIS texts.
 
-                   set kana=’\203[\100‐\226]|\201\133’
+                   set kana='\203[\100-\226]|\201\133'
                    set p="($kana)($kana|\s)*"
-                   mg −Ec0 −J ’’ "$p" files | sort | uniq −c
+                   mg -Ec0 -J '' "$p" files | sort | uniq -c
 
               Note that this command is confused when 2nd byte and 1st byte of
               next chararacter matches KATAKANA pattern.
 
-              Another  example.  If you wonder how the word ‘‘CRC’’ is used in
+              Another example.  If you wonder how the word ``CRC'' is used  in
               RFCs, you can do it like this:
 
-                   mg ‐h ‐c0 ‐J’ ’ ‐ei ’Cyclic Redundancy C\w+’ rfc*.txt
+                   mg -h -c0 -J' ' -ei 'Cyclic Redundancy C\w+' rfc*.txt
 
 
-       −0digits
+       -0digits
               Specifies the record separator as an octal number.  It is almost
-              same  as perl option.  But unlike perl, only the first record is
-              read for search.  Like perl, −00 means paragraph mode.  Actually
-              I added this option only to use −00 to search from mail and news
-              header portion.  When reading from archived  file,  mg  emulates
-              perl’s $/ behaviour.
+              same as perl option.  But unlike perl, only the first record  is
+              read for search.  Like perl, -00 means paragraph mode.  Actually
+              I added this option only to use -00 to search from mail and news
+              header  portion.   When  reading from archived file, mg emulates
+              perl's $/ behaviour.
 
-       −W     Slurp whole file at once.
+       -W     Slurp whole file at once.
 
-       −G maxreadsize[,keepsize]
-              Specify  maximum  read  size and keep buffer size for next read.
-              Default values for these sizes are 512k and 2k bytes.  Mg  tries
-              to  read  a  file  up to maximum read size at a same time.  Last
+       -G maxreadsize[,keepsize]
+              Specify maximum read size and keep buffer size  for  next  read.
+              Default  values for these sizes are 512k and 2k bytes.  Mg tries
+              to read a file up to maximum read size at  a  same  time.   Last
               part of the buffer, specified by keep buffer size, is not thrown
-              away  but will be used as a subject for search with next buffer.
-              In arguments, you can use B, K, and  M  for  block  (512),  kilo
-              (1024)  and  mega (1024 * 1024) respectively.  Next example sets
+              away but will be used as a subject for search with next  buffer.
+              In  arguments,  you  can  use  B, K, and M for block (512), kilo
+              (1024) and mega (1024 * 1024) respectively.  Next  example  sets
               maximum read size for 100K and keep buffer size for 10K bytes.
 
-                   mg −iBG 100K,10K unix /vmunix
+                   mg -iBG 100K,10K unix /vmunix
 
 
-       −1     Print first match only.  This option doesn’t work well  with  −a
+       -1     Print  first  match only.  This option doesn't work well with -a
               option.
 
-       −−man  Show manual page.
+       --man  Show manual page.
 
-       −‐icode code
-              Target  file  is  assumed to be encoded in utf8 by default.  Use
-              this option to set specific encoding.   When  handling  Japanese
-              text,  you  may  choose  from 7bit‐jis (jis), euc‐jp or shiftjis
-              (sjis).  Multiple code can be supplied using multiple option  or
-              combined  code  names with space or comma, then file encoding is
-              guessed from those code sets.  Use  encoding  name  ‘guess’  for
-              automatic recognition from default code list which is euc‐jp and
-              7bit‐jis.  Following commands are equivalent.
+       --icode code
+              Target file is assumed to be encoded in utf8  by  default.   Use
+              this  option  to  set specific encoding.  When handling Japanese
+              text, you may choose from 7bit-jis  (jis),  euc-jp  or  shiftjis
+              (sjis).   Multiple code can be supplied using multiple option or
+              combined code names with space or comma, then file  encoding  is
+              guessed  from  those  code  sets.  Use encoding name `guess' for
+              automatic recognition from default code list which is euc-jp and
+              7bit-jis.  Following commands are equivalent.
 
-                   % mg ‐‐icode=guess ...
-                   % mg ‐‐icode=euc‐jp,7bit‐jis ...
-                   % mg ‐‐icode=euc‐jp ‐‐icode=7bit‐jis ...
+                   % mg --icode=guess ...
+                   % mg --icode=euc-jp,7bit-jis ...
+                   % mg --icode=euc-jp --icode=7bit-jis ...
 
-              Default code set are always included suspect code list.  If  you
-              have  just  one  code  adding to suspect list, put + mark before
-              code name.  Next example does automatic code detection from euc‐
-              kr, ascii, utf8 and UTFâ16/32.
+              Default  code set are always included suspect code list.  If you
+              have just one code adding to suspect list,  put  +  mark  before
+              code name.  Next example does automatic code detection from euc-
+              kr, ascii, utf8 and UTFa16/32.
 
-                   % mg ‐‐icode=+euc‐kr ...
+                   % mg --icode=+euc-kr ...
 
 
-       −‐ocode code
+       --ocode code
               Specify output code.  Default is utf8.
 
-       −−if filter (or EXP:filter:EXP:filter:...)
-              You  can  specify  filter command which is applied to each files
-              before search.  If filter information  include  multiple  fields
+       --if filter (or EXP:filter:EXP:filter:...)
+              You can specify filter command which is applied  to  each  files
+              before  search.   If  filter information include multiple fields
               separated by colons, first field is perl expression to check the
-              filename saved in variable $_.   These  expression  and  command
-              list  can be repeated.  If only one filter command is specified,
+              filename  saved  in  variable  $_.  These expression and command
+              list can be repeated.  If only one filter command is  specified,
               it is applied to all files.  Examples:
 
-                   mg −−if ’dd conv=ascii’ string spoiled_files
-                   mg −−if ’/\.tar$/:tar tvf −’ pattern *
+                   mg --if 'dd conv=ascii' string spoiled_files
+                   mg --if '/\.tar$/:tar tvf -' pattern *
 
-              If the command doesn’t accept standard input as processing data,
+              If the command doesn't accept standard input as processing data,
               you may be able to use special device:
 
-                   mg −Qz ’nm /dev/stdin’ crypt /usr/lib/lib*.a
+                   mg -Qz 'nm /dev/stdin' crypt /usr/lib/lib*.a
 
 
               Filters for compressed and gzipped file is set by default unless
-              −Z option is given.  Default action is:
+              -Z option is given.  Default action is:
 
-                   mg −−if ’s/\.Z$//:zcat:s/\.g?z$//:gunzip −c’
+                   mg --if 's/\.Z$//:zcat:s/\.g?z$//:gunzip -c'
 
 
-       −−prep exp
-              You can specify the any  Perl  expression  to  preprocess  input
-              data.   Some  subroutine  will be available for this purpose but
-              currently only ‘‘&mime’’ is prepared.  If  ‘‘require’’  operator
-              is  included  in  exp,  it  is  executed  only once.  So you can
+       --prep exp
+              You  can  specify  the  any  Perl expression to preprocess input
+              data.  Some subroutine will be available for  this  purpose  but
+              currently  only  ``&mime'' is prepared.  If ``require'' operator
+              is included in exp, it  is  executed  only  once.   So  you  can
               include your special perl library and use the subroutine defined
               in it.
 
-              &mime  Subroutine  ‘‘mime’’  decodes  encoded  string  based  on
-                     RFC1342 MIME header encoding but  current  implementation
-                     handles only ISO‐2022‐JP encoding.  Example:
+              &mime  Subroutine  ``mime''  decodes  encoded  string  based  on
+                     RFC1342  MIME  header encoding but current implementation
+                     handles only ISO-2022-JP encoding.  Example:
 
-                          mg −−prep ’&mime’ −00 From ~/Mail/inbox/*
+                          mg --prep '&mime' -00 From ~/Mail/inbox/*
 
 
-              Note  that,  this  process  is done just before a search for the
-              output from input filter if −−if option is specified.  So in the
-              above example, MIME encoded string is converted into ISO‐2022‐JP
-              even if the input filter was specified to convert the  all  data
+              Note that, this process is done just before  a  search  for  the
+              output from input filter if --if option is specified.  So in the
+              above example, MIME encoded string is converted into ISO-2022-JP
+              even  if  the input filter was specified to convert the all data
               into EUC.
 
-       −−body Search  only  from  message  body.   This  is the reverse of −00
-              option; it skips RFC822 message  header  before  string  search.
-              You  can find emails which contains string "Subject" in its mes‐
+       --body Search only from message body.   This  is  the  reverse  of  -00
+              option;  it  skips  RFC822  message header before string search.
+              You can find emails which contains string "Subject" in its  mes-
               sage body by this command:
 
-                   mg −−body Subject *
+                   mg --body Subject *
 
               Otherwise it matches all normal emails.
 
-       −−pgp  Invoke PGP decrypt command for all  files.   PGP  passphrase  is
+       --pgp  Invoke  PGP  decrypt  command  for all files.  PGP passphrase is
               asked only once at the beginning of command execution.
 
-       −−pgppass
+       --pgppass
               You can specify PGP passphrase by this option.  Generally, it is
               not recommended to use.
 
-       −−exclude pattern
-              Specify the pattern which should  be  excluded  from  searching.
-              For  example,  next  command searches string ‘if’ from C source,
+       --exclude pattern
+              Specify  the  pattern  which  should be excluded from searching.
+              For example, next command searches string `if'  from  C  source,
               excluding comment part.
 
-                   mg −−exclude ’(?s)/\*.*?\*/’ if *.c
+                   mg --exclude '(?s)/\*.*?\*/' if *.c
 
-              Since this option is not implemented by preprocessor, line  num‐
-              bers are still correct and excluded part can be included in sur‐
-              rounding area by other option such as −o.
+              Since  this option is not implemented by preprocessor, line num-
+              bers are still correct and excluded part can be included in sur-
+              rounding area by other option such as -o.
 
-       −−exclude &function
-              If the pattern name begins by ampersand  (&)  character,  it  is
+       --exclude &function
+              If  the  pattern  name  begins by ampersand (&) character, it is
               treated as a name of subroutine which returns a list to exclude.
-              Using this option, user can use arbitrary function to  determine
-              from  what  part  of the text they want to search.  User defined
-              function is written in .mgrc  file  or  explicitly  included  by
-              −−require option.
+              Using  this option, user can use arbitrary function to determine
+              from what part of the text they want to  search.   User  defined
+              function  is  written  in  .mgrc  file or explicitly included by
+              --require option.
 
-                   mg −−require mycode.pl −−exclude ’&myfunc’ pattern *
+                   mg --require mycode.pl --exclude '&myfunc' pattern *
 
-              Argument  can be specified after function name with = character.
+              Argument can be specified after function name with =  character.
               Next example is equivalent to the above example (works on 5.6 or
               later).
 
@@ -637,55 +620,55 @@ OPTIONS
                        my @matched;
                        my $re = qr/$pattern/m;
                        while (/$re/g) {
-                           push(@matched, $‐[0], $+[0]);
+                           push(@matched, $-[0], $+[0]);
                        }
                        @matched;
                    }
 
-                   mg −−exclude ’&myfunc=(?s)/\*.*?\*/’ if *.c
+                   mg --exclude '&myfunc=(?s)/\*.*?\*/' if *.c
 
-              −−exclude  and  −−include option can be specified simultaneously
+              --exclude and --include option can be  specified  simultaneously
               and multiple times.
 
-       −−include pattern
-              Opposite for −−exclude.  Next command searches string ‘if’  only
+       --include pattern
+              Opposite  for --exclude.  Next command searches string `if' only
               from C source comment.
 
-                   mg −−include ’(?s)/\*.*?\*/’ if *.c
+                   mg --include '(?s)/\*.*?\*/' if *.c
 
 
-       −−require filename
+       --require filename
               Include arbitrary perl program.
 
 APPENDIX
-       You  may  want to use mg(1) instead of grep(1) from GNU emacs.  In that
+       You may want to use mg(1) instead of grep(1) from GNU emacs.   In  that
        case please add following program segment in your .emacs file.
 
             (defun mg (command)
               "Run mg instead of grep."
               (interactive "sRun mg (with args): ")
-              (require ’compile)
-              (compile1 (concat "mg ‐n " command " /dev/null")
+              (require 'compile)
+              (compile1 (concat "mg -n " command " /dev/null")
                      "No more mg hits" "mg"))
 
        If you are using version 19, use this.
 
-            (defun mg (command‐args)
+            (defun mg (command-args)
               "Run mg instead of grep."
-              (require ’compile)
+              (require 'compile)
               (interactive
-               (list (read‐from‐minibuffer "Run mg (like this): "
-                                  "mg ‐n " nil nil ’grep‐history)))
-              (compile‐internal (concat command‐args " " null‐filename)
+               (list (read-from-minibuffer "Run mg (like this): "
+                                  "mg -n " nil nil 'grep-history)))
+              (compile-internal (concat command-args " " null-filename)
                           "No more mg hits" "mg"
                           ;; Give it a simpler regexp to match.
-                          nil grep‐regexp‐alist))
+                          nil grep-regexp-alist))
 
-       For more recent emacs like version 21, default  ‘grep’  function  takes
+       For  more  recent  emacs like version 21, default `grep' function takes
        whole command line.
 
-       You  have  to  visit uninterested line by (next‐error) when surrounding
-       lines are displayed by −c or −o option.  Use −s option to avoid this.
+       You have to visit uninterested line by  (next-error)  when  surrounding
+       lines are displayed by -c or -o option.  Use -s option to avoid this.
 
 AUTHOR
        Kazumasa Utashiro
@@ -694,19 +677,19 @@ SEE ALSO
        grep(1), perl(1)
 
 BUGS
-       Option −l does not work well with −−exclude and −−include.   Option  −1
+       Option  -l  does not work well with --exclude and --include.  Option -1
        may not, either.
 
-       Perl5  look‐behind  expression  can be used but it is treated as a bare
-       regex, because variable  length  look‐behind  pattern  is  not  allowed
-       (yet).   Also since this special treatment is done by very naive mecha‐
-       nism, you can’t use braces within look‐behind pattern.   If  you  don’t
+       Perl5 look-behind expression can be used but it is treated  as  a  bare
+       regex,  because  variable  length  look-behind  pattern  is not allowed
+       (yet).  Also since this special treatment is done by very naive  mecha-
+       nism,  you  can't  use braces within look-behind pattern.  If you don't
        like it, please debug.
 
-       When  using  perl older than version 5.6, actual pattern is enclosed by
+       When using perl older than version 5.6, actual pattern is  enclosed  by
        parentheses, and it confuses the order of subexpressions if it contains
-       back‐references.   The  order  is  fixed automatically but you may have
-       some problem for certain patterns.  Use −dm option to check the  actual
+       back-references.  The order is fixed automatically  but  you  may  have
+       some  problem for certain patterns.  Use -dm option to check the actual
        pattern for search when you doubt the behavior of this command.
 
        Hyphenation is not supported.
@@ -716,18 +699,18 @@ BUGS
        Very long JIS code pattern may not be processed because of a limitation
        of regular expression engine.
 
-       Not enough space for new option (try undocumented option  −U...,  oops,
-       documented here :‐).
+       Not  enough  space for new option (try undocumented option -U..., oops,
+       documented here :-).
 
 LICENSE
-       Copyright (c) 1991‐2013 Kazumasa Utashiro
+       Copyright (c) 1991-2013 Kazumasa Utashiro
 
-       Use and redistribution for ANY PURPOSE are granted as long as all copy‐
+       Use and redistribution for ANY PURPOSE are granted as long as all copy-
        right  notices  are  retained.   Redistribution  with  modification  is
-       allowed  provided that you make your modified version obviously distin‐
-       guishable from the original one.  THIS  SOFTWARE  IS  PROVIDED  BY  THE
-       AUTHOR  ‘‘AS IS’’ AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED.
+       allowed provided that you make your modified version obviously  distin-
+       guishable  from  the  original  one.   THIS SOFTWARE IS PROVIDED BY THE
+       AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES ARE  DISCLAIMED.
 
 
 
-7th Edition                 2013/10/23 (v5.0.1.11)                       MG(1)
+7th Edition                 2013/10/23 (v5.0.1.12)                       MG(1)

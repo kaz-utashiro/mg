@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.11 2013/10/23 11:14:53 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.12 2013/10/23 11:41:23 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -1577,7 +1577,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.11 2013/10/23 11:14:53 utashiro Exp $
+.XX $Id: mg,v 5.0.1.12 2013/10/23 11:41:23 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1588,16 +1588,6 @@ mg \- multi-line grep
 .SH SYNOPSIS
 \fBmg\fP [ \fBoptions\fP ] \fIpattern\fP [ \fIfile\fP ]
 .\"------------------------------------------------------------
-.SH WARNING
-This version is experimental implementation supporting utf8
-code for search string and target files.  Search string have
-to be described in utf8 in both command line argument and
-pattern file (option \-p).  Also .mgrc file is written in
-utf8.  Default file code is also utf8.  Use \-j to specify
-file code and use code name ``Guess'' for automatic code
-recognition.  Many fossile code and documentation are
-remained relating other coding system, and they should be
-removed in the future.
 .SH DESCRIPTION
 \fIMg\fP searches the specified pattern from files or
 standard input and prints lines which contain the search
@@ -1647,23 +1637,15 @@ control).  Option \-dcd gives you ongoing status.
 because Japanese words are not separated by whitespaces, and
 newline character can be inserted at any place of the text.
 As a matter of fact, \fImg\fP was originally made for
-Japanese string search.  Any Japanese codes including UTF8,
-JIS, Shift-JIS, EUC can be handled hopefully, but using JIS
-code disables some features.
+Japanese string search.
 .PP
-User should be aware that \fImg\fP doesn't recognize
-character boundaries even if the search string is described
-in any of Japanese code.  So some 2-byte character code may
-match with second byte of a character and first byte of the
-next.  Especially when it is encoded in JIS, it may match
-some sequence of ASCII string (it may be meaningless string
-in uuencode or base64).  From my experience, this is not a
-big problem when searching some meaningful strings, but you
-may get in trouble when looking for short string especially
-single character.
-.PP
-Default file code is UTF8.  Use \-j option to specify file
-code, and use \-j Guess for automatic code recognition.
+.B [MULTIBYTE CODE SET HANDLING]
+Search string have to be described in utf8 in both command
+line argument and pattern file (option \-p).  Also .mgrc
+file should be written in utf8.  Default file code is also
+utf8.  Use \-\-icode option to specify file code and use
+code name ``guess'' for automatic code recognition.  Use
+\-\-ocode option to specify output code.
 .PP
 .B [ARCHIVE SEARCH]
 If the file is archived file by \fIar\fP(1) or \fItar\fP(1)
