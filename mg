@@ -5,10 +5,10 @@
 ##
 ## mg: multi-line grep
 ##
-## Copyright (c) 1991-2011 Kazumasa Utashiro
+## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.10 2013/10/22 15:51:12 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.11 2013/10/23 11:14:53 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -38,12 +38,13 @@ use Text::ParseWords qw(shellwords);
 
 use utf8;
 use Encode;
-#use Encode::Guess qw(shiftjis euc-jp 7bit-jis);
-use Encode::Guess qw(euc-jp 7bit-jis);
+use Encode::Guess;
 
-binmode STDOUT, ':utf8';	# XXX remove hard-coding
-binmode STDERR, ':utf8';	# XXX remove hard-coding
-our $default_code = 'utf8';	# default input encoding
+my $file_code;
+my $default_icode = 'utf8';	# default input encoding
+my @default_icode_list = qw(euc-jp 7bit-jis);
+my $output_code;
+my $default_ocode = 'utf8';	# default output encoding
 
 my @opts;
 @opts =('i::ignore case',
@@ -90,22 +91,20 @@ my @opts;
 	'W::slurp whole file contents at once',
 	'G:#[,#]:maxreadsize and keepsize',
 	'1::print first match only',
-	'j:code:specify Japanese code of file (jis, sjis, euc)',
 	'd:flags:display info (f:file d:dir c:count m:misc s:stat)',
 	'-:IYUt:',
 	't::-T takes only ascii files',
-	'I::ignore error', 'U::show unused opts',
+	'I::ignore error',
+	'U::show unused opts',
 	'man::show manual page',
+	'icode:@name:specify file encoding (repeatable)',
+	'ocode:name:specify output encoding',
 	'if:filter:set filter command',
 	'of:filter:output filter command',
 	'prep:exp:pre-processor function (&mime: RFC1342 decoding)',
 	'body::search only from message body',
 	'pgp::remember passphrase and use it for PGP processing',
 	'pgppass:phrase:pgp passphrase',
-	'pcode:code:set process character code',
-	'euc::shortcut for --pcode euc',
-	'jis::shortcut for --pcode jis',
-	'sjis::shortcut for --pcode sjis',
 	'mime::shortcut for -x "&mime"',
 	'exclude:@pattern:specify exclude pattern or subroutine',
 	'include:@pattern:oposit to --exclude',
@@ -123,6 +122,7 @@ my @opts;
 my @optspec = &MkoptsLong(@opts);
 my @opt_file;
 my @opt_glob;
+my @opt_icode;
 my @opt_exclude;
 my @opt_include;
 my @opt_and, @opt_or;
@@ -210,6 +210,9 @@ if ($db_o) {
     warn "\@optspec = @optspec\n";
 }
 
+$output_code = $opt_ocode || $default_ocode;
+binmode STDOUT, ":encoding($output_code)";
+binmode STDERR, ":encoding($output_code)";
 
 if ($opt_mod) {
     eval "use Mg::$opt_mod";
@@ -218,19 +221,8 @@ if ($opt_mod) {
     }
 }
 
-
 if (defined $opt_chdir) {
     chdir $opt_chdir or die "$!: $opt_chdir\n";
-}
-
-## character code option shortcuts
-## nkf is hardcorded -- XXX
-$opt_pcode = "jis" if $opt_jis;
-$opt_pcode = "euc" if $opt_euc;
-$opt_pcode = "sjis" if $opt_sjis;
-if ($opt_pcode) {
-    $opt_if = sprintf("nkf -%s", substr($opt_pcode, 0, 1));
-    $opt_j = $opt_pcode;
 }
 
 ## --mime shortcut
@@ -241,7 +233,7 @@ if ($opt_U) {
     $_ = join('','0'..'9',"\n",'a'..'z',"\n",'A'..'Z',"\n");
     my $opts;
     for (@optspec) {
-	if (/^(.)(?:=s)?$/) {
+	if (/^([0-9a-zA-Z])(?:=s)?$/) {
 	    $opts .= $1;
 	}
     }
@@ -264,49 +256,27 @@ if ($opt_C) {
 $delim .= $opt_w ? '+' : '*';
 $rawdelim = quotemeta($delim);
 
-$in  = join('|', (@in  = ('\e\$\@', '\e\$B')));
-$out = join('|', (@out = ('\e\(J',  '\e\(B')));
-$shiftcode   = '(' . join('|', @in, @out) . ')';
-$optionalseq = '(?:' . join('|', @in, @out, $opt_C || '\s'). ')*';
-$rawoptionalseq = quotemeta($optionalseq);
-
-if (defined $opt_j) {
-    $opt_j = '7bit-jis' if $opt_j eq 'is' or $opt_j eq 'jis';
-    $opt_j = 'shiftjis' if $opt_j eq 'sjis';
-    $opt_j = 'euc-jp' if $opt_j eq 'euc';
-} else {
-    $opt_j = $default_code;
-}
-
-sub deprecated_mkpat {
-    my($pat, $p) = @_;
-    if (defined($opt_j)) {
-	require('jcode.pl');
-	&jcode::convert(\$pat, $opt_j);
-    }
-    for (split(/$shiftcode/, $pat)) {
-	if (/$in/o)  { $jis = 1; $p .= $optionalseq if $p; next; }
-	if (/$out/o) { $jis = 0; next; }
-	if ($jis)    { s/(..)/&jis($1)/eg; $p .= $_; next; }
-	if ($opt_e or $opt_E) {
-	    s{
-		(\(\?\<[=!][^\)]*\))	# look-behind pattern
-		|
-		([\200-\377]?.)		# normal characters
-	    }{
-		if ($1) {
-		    $1;
-		} else {
-		    length($2) > 1 ? &mb($2) : &asc($2)
-		}
-	    }egx;
-	} else {
-	    s/([\200-\377]?.)/length($1) > 1 ? &mb($1) : &asc($1)/eg;
+## setup file encoding
+if (@opt_icode) {
+    @opt_icode = map { split /[,\s]+/ } @opt_icode;
+    my $use_add;
+    map { s/^\+// and ++$use_add } @opt_icode;
+    if (@opt_icode == 1) {
+	$file_code = $opt_icode[0];
+	if ($use_add) {
+	    Encode::Guess->add_suspects($file_code);
+	    $file_code = 'Guess';
 	}
-	$p .= $_;
+	elsif ($file_code =~ /^guess$/i) {
+	    Encode::Guess->set_suspects(@default_icode_list);
+	}
+    } else {
+	Encode::Guess->set_suspects(@opt_icode);
+	$file_code = 'Guess';
     }
-    $p =~ s/($rawdelim|$rawoptionalseq)+$//;
-    length($p) ? ($opt_i ? "(?i)$p" : $p) : undef;
+}
+else {
+    $file_code = $default_icode;
 }
 
 sub mkpat {
@@ -332,26 +302,17 @@ sub mkpat {
 	$p =~ s/(.)/length(Encode::encode_utf8($1)) > 1 ? &mb($1) : &asc($1)/eg;
     }
 
-    $p =~ s/($rawdelim|$rawoptionalseq)+$//;
+    $p =~ s/($rawdelim)+$//;
     length($p) ? ($opt_i ? "(?i)$p" : $p) : undef;
 }
 
 ## make search pattern
 if ($opt_f) {
     my $patterns;
-    if (1) {
-	open(my $fh, '<:encoding(utf8)', $opt_f) or die "$opt_f: $!\n";
-	local $/ = undef;
-	$patterns = <$fh>;
-	close($fh);
-    } else {
-	## Why this code doesn't work ??? XXX
-	open(my $fh, '<', $opt_f) or die "$opt_f: $!\n";
-	local $/ = undef;
-	$patterns = <$fh>;
-	close($fh);
-	$pattenrs = Encode::decode('utf8', $patterns);
-    }
+    open(my $fh, '<:encoding(utf8)', $opt_f) or die "$opt_f: $!\n";
+    local $/ = undef;
+    $patterns = <$fh>;
+    close($fh);
     my(@opt_f) = $patterns =~ m/(.*)/g;
     @opt_f = grep { !/^#/ } @opt_f;
     for (@opt_f) { s/\n//; }
@@ -551,9 +512,6 @@ if ($opt_of) {			# open output filter
     $| = 1;
 }
 
-binmode STDOUT, ':utf8';	# XXX remove hard-coding
-binmode STDERR, ':utf8';	# XXX remove hard-coding
-
 ##
 ## Combine @opt_include and @opt_exclude into single list.
 ##
@@ -637,11 +595,8 @@ sub open_nextfile {
 	    printf STDERR "Filter: \"$filter\" < %s.\n", $file;
 	}
 
-	if ($opt_j) {
-	    binmode STDIN, ":encoding($opt_j)";
-	} else {
-	    binmode STDIN, ':encoding(Guess)';
-	}
+	binmode STDIN, ":encoding($file_code)";
+
 	return $file;
     }
     undef;
@@ -1622,7 +1577,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.10 2013/10/22 15:51:12 utashiro Exp $
+.XX $Id: mg,v 5.0.1.11 2013/10/23 11:14:53 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -2236,12 +2191,36 @@ for 100K and keep buffer size for 10K bytes.
 .IP \-1
 Print first match only.  This option doesn't work well
 with \-a option.
-.IP "\-j \fIcode\fP"
-Default file code is utf8.  Use this option to change file
-encoding from 7bit-jis, euc-jp, shiftjis, or use Guess for
-automatic code recognition.
 .IP "\-\-man"
 Show manual page.
+.IP "\--icode \fIcode\fP"
+Target file is assumed to be encoded in utf8 by default.
+Use this option to set specific encoding.  When handling
+Japanese text, you may choose from 7bit-jis (jis), euc-jp or
+shiftjis (sjis).  Multiple code can be supplied using
+multiple option or combined code names with space or comma,
+then file encoding is guessed from those code sets.  Use
+encoding name `guess' for automatic recognition from default
+code list which is euc-jp and 7bit-jis.  Following commands
+are equivalent.
+.nf
+
+	% mg --icode=guess ...
+	% mg --icode=euc-jp,7bit-jis ...
+	% mg --icode=euc-jp --icode=7bit-jis ...
+
+.fi
+Default code set are always included suspect code list.  If
+you have just one code adding to suspect list, put + mark
+before code name.  Next example does automatic code
+detection from euc-kr, ascii, utf8 and UTF−16/32.
+.nf
+
+	% mg --icode=+euc-kr ...
+
+.fi
+.IP "\--ocode \fIcode\fP"
+Specify output code.  Default is utf8.
 .IP "\-\-if \fIfilter\fP (or \fIEXP:filter:EXP:filter:...\fP)"
 You can specify filter command which is applied to each
 files before search.  If filter information include multiple
@@ -2312,15 +2291,6 @@ asked only once at the beginning of command execution.
 .IP "\-\-pgppass"
 You can specify PGP passphrase by this option.  Generally,
 it is not recommended to use.
-.IP "\-\-pcode \fIcode\fP"
-Specify processing Japanese code, that means convert both
-file contents and the search pattern before execution.
-Actually, this is just a shortcut of option combination:
-.nf
-
-	mg \-j \fIcode\fP \-\-if='nkf -\fIcode\fP' ...
-
-.fi
 .IP "\-\-exclude \fIpattern\fP"
 Specify the pattern which should be excluded from searching.
 For example, next command searches string `if' from C source,
@@ -2453,7 +2423,7 @@ Not enough space for new option (try undocumented option
 .\"------------------------------------------------------------
 .SH LICENSE
 .PP
-Copyright (c) 1991-2011 Kazumasa Utashiro
+Copyright (c) 1991-2013 Kazumasa Utashiro
 .PP
 Use and redistribution for ANY PURPOSE are granted as long as all
 copyright notices are retained.  Redistribution with modification
