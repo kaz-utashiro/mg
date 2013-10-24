@@ -8,14 +8,12 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.12 2013/10/23 11:41:23 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.13 2013/10/24 01:24:39 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
 ##	% mg -nRTP '*.[sch]' 'struct vnode' /sys	# recursive search
 ##	% mg -o sockaddr /usr/include/sys/socket.h	# paragraph mode
-##	% mg -Bc0,1 '@(#)' /lib/libc.a			# binary mode
-##	% mg -iTB copyright /bin/*			# auto bin/text mode
 ##	% tset -IQS | mg -ec0 '(so|se)=[^:]+'		# matched part only
 ##	% echo $path | mg -Q mh				# highlighting
 ##
@@ -75,8 +73,6 @@ my @opts;
 	'P:pattern:specify search file in wildcard (w/-R)',
 	'V:pattern:specify exception file in wildcard (w/-R)',
 	'F::follow symbolic link of directory (w/-R)',
-	'T::search text file only',
-	'B::search from binary file',
 	'L::print formfeed before each matching',
 	'S::get filenames from stdin',
 	'm::print only line across matching',
@@ -92,8 +88,7 @@ my @opts;
 	'G:#[,#]:maxreadsize and keepsize',
 	'1::print first match only',
 	'd:flags:display info (f:file d:dir c:count m:misc s:stat)',
-	'-:IYUt:',
-	't::-T takes only ascii files',
+	'-:IYU:',
 	'I::ignore error',
 	'U::show unused opts',
 	'man::show manual page',
@@ -126,6 +121,8 @@ my @opt_icode;
 my @opt_exclude;
 my @opt_include;
 my @opt_and, @opt_or;
+
+binmode STDERR, ":encoding(utf8)";
 
 ##
 ## User customizable option handling in ~/.mgrc
@@ -186,6 +183,8 @@ my @SAVEDARGV = @ARGV;
 Getopt::Long::Configure("bundling");
 GetOptions(@optspec) || &usage;
 sub usage {
+    select STDERR;
+
     my($usage, $option) =
 	&UsageLong($0, \@optspec, "pattern [ file ... ]", @opts);
     print "usage: mg [ -options ] pattern [ file... ]\n", $option;
@@ -212,7 +211,6 @@ if ($db_o) {
 
 $output_code = $opt_ocode || $default_ocode;
 binmode STDOUT, ":encoding($output_code)";
-binmode STDERR, ":encoding($output_code)";
 
 if ($opt_mod) {
     eval "use Mg::$opt_mod";
@@ -442,17 +440,6 @@ unless ($opt_W) {
     warn "maxreadsize = $maxreadsize, keepsize = $keepsize\n" if $db_m;
 }
 
-if ($opt_T) {
-    my($quick_check, $binary_check) = $opt_t
-	? ('/\0/', 'tr/\000-\007\013\016-\032\034-\037\200-\377/./*10>length')
-	: ('/[\0\377]/', 'tr/\000-\007\013\016-\032\034-\037/./*10>length');
-    &eval('sub binary {
-	return 1 if $_[0] =~ ' . $quick_check . ';
-	local($_) = substr($_[0], 0, 512);
-	' . $binary_check . ';
-    }');
-}
-
 my $pgp;
 if ($opt_pgp) {
     $opt_W = 1;
@@ -532,7 +519,7 @@ unshift(@ARGV, @opt_file) if @opt_file;
 push(@ARGV, '-') unless @ARGV || $opt_S;
 
 $hash_t = 1;
-$bin = $opt_B;
+#$bin = $opt_B;
 $dirend = "\0\0";
 $p_all = !($opt_m || $opt_M);
 $NL = $opt_a ? "\377#+%&^=(*-!" x 2 : "\n";
@@ -639,10 +626,6 @@ sub main {
 
 	if ($isfile && defined($/) && (!length || seek(STDIN, 0, 0))) {
 	    $_ = '';
-	}
-	if ($opt_t && $isfile && $opt_T && ($bin = -B $file) && !$opt_B) {
-	    $db_f && warn("$file: skip\n");
-	    next;
 	}
 
 	$total_files++;
@@ -757,14 +740,7 @@ sub grepfile {
 		print STDERR "\r$s";
 	    }
 
-	    if ($opt_T
-		&& !($opt_t && $isfile) && ($bin = &binary($_))
-		&& !$opt_B) {
-		warn("$file: skip\n") if $db_f;
-		last;
-	    }
-
-	    warn $file, ' (binary)' x $bin, ":\n" if $db_f;
+	    warn $file, ":\n" if $db_f;
 	    $file = $showfname ? $file : '';
 	    if ($opt_body) {
 		my $p;
@@ -948,7 +924,6 @@ sub grep {
 	    push(@out, "\n") if $opt_s && $needinfo;
 	}
 	&nlsubs(*left, $file, *l, 0) if $neednlsubs;
-	$left =~ s/^([\000-\377]*[^\b\s!-~])// && ($pnl += length($1)) if $bin;
 	push(@out, $left);
 	for ($_matched = 0;; ($p, $len) = splice(@x, 0, 2)) {
 	    @cont = ();
@@ -977,9 +952,6 @@ sub grep {
 	    }
 	    $opt_M && $print++;
 	    $between = substr($_, $p, $x[$[] - $p);
-	    if ($bin && $between =~ /[^\b\s!-~]/) {
-		last;
-	    }
 	    if ($neednlsubs) {
 		&nlsubs(*between, $file, *l, 0);
 	    }
@@ -997,7 +969,7 @@ sub grep {
 		    $nnl = &max($p, (length) - $keepsize);
 		} elsif ($pnl >= (length) - $keepsize) {
 		    last;
-		} elsif (!$bin || !/[^\b\s!-~]/) {
+		} else {
 		    push(@err, "!!! WARNING: Above line is truncated !!!\n");
 		}
 	    }
@@ -1006,7 +978,6 @@ sub grep {
 	$lastnl = $opt_a && !$more &&
 	    substr($right, -1, 1) eq "\n" ? chop($right) : '';
 	next if $opt_v ne '' && substr($_, $pnl + 1, $nnl - $pnl) =~ /$opt_v/o;
-	$right =~ s/[^\b\s!-~][\000-\377]*// if $bin;
 	&nlsubs(*right, $file, *l, 0) if $neednlsubs;
 	push(@out, $right);
 	push(@out, (!$opt_a || !$more) ? "\n" : $lastnl, @cont);
@@ -1577,7 +1548,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.12 2013/10/23 11:41:23 utashiro Exp $
+.XX $Id: mg,v 5.0.1.13 2013/10/24 01:24:39 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1627,10 +1598,9 @@ Containing page is with \-g, and entire text is printed with
 .PP
 .B [RECURSIVE SEARCH]
 \fIMg\fP supports recursive directory search.  Use \-R
-option to enable it.  This option can be combined with \-T
-(text only search), \-B (binary data search), \-P/V (file
-name pattern), \-D (descending level), \-F (symbolic link
-control).  Option \-dcd gives you ongoing status.
+option to enable it.  This option can be combined with \-P/V
+(file name pattern), \-D (descending level), \-F (symbolic
+link control).  Option \-dcd gives you ongoing status.
 .PP
 .B [JAPANESE STRING SEARCH]
 \fIMg\fP is also useful to find a word from Japanese text
@@ -2024,7 +1994,7 @@ will be displayed in different line.
 Search recursively.  Only files specified by command line
 arguments are searched by default.  When invoked with this
 option and arguments contain a directory, it is searched
-recursively.  Usually used with \-P or \-T option.
+recursively.  Can be used with \-P.
 .IP "\-D \fIlevel\fP"
 Descending directory level.  This option specifies how many
 levels of directory is to be searched from top directory.
@@ -2056,22 +2026,6 @@ a directory name to search.
 .IP \-F
 Follow symbolic link of a directory.  Doesn't follow by
 default.
-.IP \-T 
-Search text file only.  Binary file is skipped with this
-option.  Decision is made by original method, not by perl
-operator \-T, so that Japanese SJIS and EUC text is taken as
-text file. See \-B option.
-.IP \-B
-Find string from binary file.  Only printable characters
-surrounding matched pattern are printed.  If both \-T and
-\-B are supplied, text file is searched in normal mode and
-binary file is searched in binary mode.  Next example is
-almost the same as \fIwhat\fP(1).
-.nf
-
-	mg \-Bc0,1 '@(#)' /bin/awk
-
-.fi
 .IP \-L
 Print formfeed between each matchings.  Print the formfeed
 character before each matched line.  This options is useful
