@@ -8,7 +8,7 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.13 2013/10/24 01:24:39 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.14 2013/10/28 10:33:25 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -59,11 +59,10 @@ my @opts;
 	'c:n[,n]|/\d+(,\d+)?/:print n tol/eol before/after matched line',
 	'o::paragraph mode',
 	'O:string:specify paragraph delimiter string',
-	'g:lines|/^\d+$/:page mode',
 	'C:chars:continuous characters',
-	'u::underline matched string (except JIS)',
-	'b::make bold (print twice) matched string (except JIS)',
-	'Q::stand-out matched string (except JIS)',
+	'u::underline matched string',
+	'b::make bold (print twice) matched string',
+	'Q::stand-out matched string',
 	'Y::yield to -Q option even if stdout is not a terminal',
 	'a::print whole file (no filename and line number)',
 	's::output filename and line number separately',
@@ -80,7 +79,6 @@ my @opts;
 	'f:file:file contains search pattern',
 	'x::extended pattern interpretation',
 	'p:pattern:specify search pattern',
-	'A::do not archive search',
 	'Z::do not uncompress automatically',
 	'J:string:convert newline in matched string to the string',
 	'0:digits:record separator by octal and single record search',
@@ -111,6 +109,7 @@ my @opts;
 	'or:@pattern:OR patterns (repeatable)',
 	'not:@pattern:NOT patterns (repeatable)',
 	'xp:pattern:extended pattern',
+	'color::use termninal color for emphasize',
 	'block::experimental block mode',
 	'mod:module:experimental include module',
 );
@@ -121,6 +120,7 @@ my @opt_icode;
 my @opt_exclude;
 my @opt_include;
 my @opt_and, @opt_or;
+my @opt_color;
 
 binmode STDERR, ":encoding(utf8)";
 
@@ -241,7 +241,7 @@ if ($opt_U) {
 
 ## show man pages
 if ($opt_man) {
-    exec "nroff -man $0 |" . ($ENV{'PAGER'} || 'more') . ' -s';
+    exec "nroff -Tascii -man $0 |" . ($ENV{'PAGER'} || 'more') . ' -s';
     die;
 }
 
@@ -356,14 +356,6 @@ if (defined @opt_not) {
 ($opt_P, $opt_V) = (&wildcard($opt_P), &wildcard($opt_V));
 $opt_p = "\\b$opt_p\\b" if $opt_w && !$opt_E;
 
-## some option have to be disabled when searching JIS string
-if (defined($jis)) {
-    for ('u', 'b') {
-	local(*opt) = "opt_$_";
-	$opt = 0, warn "-$_ is disabled.\n" if $opt;
-    }
-}
-
 ##
 ## make search functions
 ##
@@ -388,7 +380,7 @@ sub match {
     m/$pattern/;
 }
 
-if ($opt_Q && ($opt_Y || -t STDOUT)) {
+if ($opt_Y || -t STDOUT) {
     ($ql, $qr, $qd, $qe) = &sose;
 }
 $nlqsubs = $opt_n ? qq#s/\\n/"$qd\\n\$file".++\$line.":$qe"/ge#
@@ -422,13 +414,6 @@ if (defined($_ = $opt_c)) {
 $pre_c = $opt_o ? -1 : 1 unless defined($pre_c);
 $post_c = $opt_o ? -1 : 1 unless defined($post_c);
 
-$ar_header_format = "A16 a12 a6 a6 a8 a10 a2";
-($ar_name, $ar_date, $ar_uid, $ar_gid, $ar_mode, $ar_size, $ar_fmag) = (0..6);
-
-$tar_header_format = "a100 a8 a8 a8 a12 a12 a8 a a100 a*";
-($tar_name, $tar_mode, $tar_uid, $tar_gid, $tar_size,
-    $tar_mtime, $tar_chksum, $tar_linkflag, $tar_linkname, $tar_pad) = (0..9);
-
 unless ($opt_W) {
     my %units = ('b' => 512, 'k' => 1024, 'm' => 1024 * 1024);
     ($maxreadsize, $keepsize) = (1024 * 512, 1024 * 2);
@@ -454,7 +439,10 @@ if ($opt_pgp) {
 }
 
 unless ($opt_Z) {
-    push(@filter, 's/\.Z$//', 'zcat', 's/\.g?z$//', 'gunzip -c');
+    push(@filter,
+	 's/\.Z$//',   'zcat',
+	 's/\.g?z$//', 'gunzip -c',
+	 'm/\.pdf$/i', 'pdftotext -nopgbrk - -');
 }
 if ($opt_if) {
     push(@filter, split(':', $opt_if));
@@ -519,7 +507,6 @@ unshift(@ARGV, @opt_file) if @opt_file;
 push(@ARGV, '-') unless @ARGV || $opt_S;
 
 $hash_t = 1;
-#$bin = $opt_B;
 $dirend = "\0\0";
 $p_all = !($opt_m || $opt_M);
 $NL = $opt_a ? "\377#+%&^=(*-!" x 2 : "\n";
@@ -594,39 +581,7 @@ sub main {
     while (defined($file = &open_nextfile)) {
 	$_ = '';
 	$size = -1;
-	$pad = 0;
-	if (!$ar && !$opt_A && read(STDIN, $_, 8) && ($_ eq "!<arch>\n")) {
-	    $arfile = $file;
-	    $ar = 1;
-	    redo;
-	}
-	elsif ($ar && read(STDIN, $_, 60) &&
-	       &arheader(@header = unpack($ar_header_format, $_))) {
-	    redo if !($size = $header[$ar_size]);
-	    $file = "($arfile)$header[$ar_name]";
-	    $pad = $size % 2;
-	    $_ = '';
-	}
-	elsif (!$ar && !$opt_A && read(STDIN, $_, 512 - length, length) &&
-	       /\0/ && &tarheader(@header = unpack($tar_header_format, $_))) {
-	    $arfile = $file unless $arfile;
-	    $size = oct($header[$tar_size]);
-	    redo if ($size == 0 || $header[$tar_linkflag] =~ /[12]/);
-	    ($file = "[$arfile]$header[$tar_name]") =~ s/\0+//;
-	    $pad = (512 - $size) % 512;
-	    $_ = '';
-	}
-	elsif ($arfile) {
-	    undef $ar;
-	    undef $arfile;
-	    next;
-	}
-	$showfname = 1 if $arfile && !$opt_h;
-	$isfile = !$arfile && !$filter && $file ne '-';
-
-	if ($isfile && defined($/) && (!length || seek(STDIN, 0, 0))) {
-	    $_ = '';
-	}
+	$isfile = !$filter && $file ne '-';
 
 	$total_files++;
 	($matched, $rest) = &grepfile;
@@ -638,7 +593,6 @@ sub main {
 	}
 	$total_matched += $matched;
 	$total_hitfiles++ if $matched;
-	redo if $arfile;
     } continue {
 	close STDIN; # wait;	# wait for 4.019 or earlier?
 	# recover STDIN for opening '-' and some weird command which needs
@@ -782,25 +736,6 @@ sub grepfile {
 	   $s = read(STDIN, $_, &min($size, 8192))) {
 	$size -= $s;
     }
-    if ($pad) {
-	my $__trash__;
-	if (0) {
-	    ##
-	    ## This part used be written as this:
-	    ##
-	    seek(STDIN, $pad, 1) || read(STDIN, $__trash__, $pad);
-	    ##
-	    ## However there was a situation this seek sets to wrong
-	    ## position in the file (FreeBSD 3.4 i386 + perl5.6.0).
-	    ## It seems to be a bug incorporated in 5.6.0 and fixed in
-	    ## 5.6.1.  This workaround is intentionally kept in case
-	    ## of used with buggy 5.6.0 and there is no strong reason
-	    ## to behave differently.
-	    ##
-	} else {
-	    read(STDIN, $__trash__, $pad);
-	}
-    }
     ($c, $size);
 }
 
@@ -904,11 +839,7 @@ sub grep {
 	@out = @err = ();
 	$print = $p_all;
 	push(@out, $file) if $file && !$opt_a || !$offset;
-	$line += (substr($_, $op, $p - $op) =~ tr/\n/\n/) if $opt_n || $opt_g;
-	if ($opt_g) {
-	    $pre_c = ($line - 1) % $opt_g + 1;
-	    $post_c = $opt_g - $pre_c + 1;
-	}
+	$line += (substr($_, $op, $p - $op) =~ tr/\n/\n/) if $opt_n;
 	$op = $pnl = $p;
 	for ($n = $pre_c; ($opt_o || $n) && ($pnl >= 0); $n--) {
 	    last if ($pnl = rindex($_, $NL, $pnl - 1)) < 0;
@@ -930,10 +861,6 @@ sub grep {
 	    $_matched++;
 	    $match = substr($_, $p, $len);
 	    $print += (index($match, "\n") >= $[) if $opt_m;
-	    if ($opt_g) {
-		$post_c -= ($match =~ tr/\n/\n/);
-		$post_c += $opt_g while $post_c <= 0;
-	    }
 	    &effect($match) if $effect;
 	    &nlsubs(*match, $file, *l, 1) if $neednlqsubs;
 	    push(@out, $ql, $match, $qr);
@@ -954,9 +881,6 @@ sub grep {
 	    $between = substr($_, $p, $x[$[] - $p);
 	    if ($neednlsubs) {
 		&nlsubs(*between, $file, *l, 0);
-	    }
-	    if ($opt_g) {
-		$post_c -= ($between =~ tr/\n/\n/);
 	    }
 	    push(@out, $between);
 	}
@@ -988,7 +912,7 @@ sub grep {
 	}
 	$lastmatch = $offset + ($opt_a ? $nnl : $p);
     }
-    $line += (substr($_, $op) =~ tr/\n/\n/) if $more && ($opt_n || $opt_g);
+    $line += (substr($_, $op) =~ tr/\n/\n/) if $more && $opt_n;
     $matched;
 }
 sub xsearch {
@@ -996,6 +920,29 @@ sub xsearch {
 
     local(*_) = shift;
     my($xp) = @_;
+
+    ##
+    ## build match result list
+    ##
+    my @result;
+    my $required_count;
+    my $matched;
+    for (my $i = 0; $i < @xpattern; $i++) {
+	my($required, $regex) = @{$xpattern[$i]};
+	$required_count++ if $required;
+	my $rp = $result[$i] = [];
+	while (/$regex/g) {
+	    push(@$rp, [$-[0], $+[0]]);
+	}
+	++$matched if @$rp;
+    }
+
+    return 0 if $matched == 0;
+
+    if ($matched == 1) {
+	map { push(@{$xp}, $_->[0], $_->[1] - $_->[0]) } map { @$_ } @result;
+	return 1;
+    }
 
     ##
     ## build block list
@@ -1012,20 +959,6 @@ sub xsearch {
     }
     while (m/$re/g) {
 	push(@blocks, [$-[0], $+[0]]);
-    }
-
-    ##
-    ## build match result list
-    ##
-    my @result;
-    my $required_count;
-    for (my $i = 0; $i < @xpattern; $i++) {
-	my($required, $regex) = @{$xpattern[$i]};
-	$required_count++ if $required;
-	my $rp = $result[$i] = [];
-	while (/$regex/g) {
-	    push(@$rp, [$-[0], $+[0]]);
-	}
     }
 
     ##
@@ -1139,9 +1072,6 @@ sub mb {
     $ret .= $delim unless $opt_E;
     $ret;
 }
-sub jis {
-    quotemeta(shift) . $optionalseq;
-}
 sub asc2x0208 {
     local($_, $msb) = @_;
     if (/[0-9a-zA-Z]/) {
@@ -1174,27 +1104,12 @@ sub wildcard {
     length($_) ? "^$_\$" : undef;
 }
 sub sose {
-    require Term::Cap;
-    $ospeed = 9600 unless $ospeed;
-    my $terminal = Tgetent Term::Cap { TERM => undef, OSPEED => $ospeed };
-    my $so = $terminal->Tputs('so');
-    my $se = $terminal->Tputs('se');
+    use Term::ANSIColor qw(:constants);
+    my($so, $se);
+    $so .= REVERSE if $opt_Q;
+    $so .= RED if $opt_color;
+    $se = RESET if $so;
     ($so, $se, $se, $so);
-}
-sub arheader {
-    ($_[$ar_fmag] eq "`\n")	&&	# char ar_fmag[2];
-    ($_[$ar_date] =~ /^\d+ *$/)	&&	# char ar_date[12];
-    ($_[$ar_uid]  =~ /^\d+ *$/)	&&	# char ar_uid[6];
-    ($_[$ar_gid]  =~ /^\d+ *$/)	&&	# char ar_gid[6];
-    ($_[$ar_mode] =~ /^\d+ *$/)	&&	# char ar_mode[8];
-    ($_[$ar_size] =~ /^\d+ *$/);	# char ar_size[10];
-}
-sub tarheader {
-    ($_[$tar_mode]  =~ /^[ 0-7]{7}\0$/)	&&
-    ($_[$tar_uid]   =~ /^ *\d+ *\0$/)	&&
-    ($_[$tar_gid]   =~ /^ *\d+ *\0$/)	&&
-    ($_[$tar_size]  =~ /^ *\d+ *\0?$/)	&&
-    ($_[$tar_mtime] =~ /^ *\d+[ \0]?$/);	## Is this enough?
 }
 sub truncate {			# emulate $/.
     local(*_, $rs, $p) = @_;
@@ -1548,7 +1463,7 @@ sub decrypt {
 .de XX
 .ds XX \\$4\ (v\\$3)
 ..
-.XX $Id: mg,v 5.0.1.13 2013/10/24 01:24:39 utashiro Exp $
+.XX $Id: mg,v 5.0.1.14 2013/10/28 10:33:25 utashiro Exp $
 .\"Many thanks to Ajay Shekhawat for correction of manual pages.
 .TH MG 1 \*(XX
 .AT 3
@@ -1587,6 +1502,9 @@ suffix and preprocessor pair can be defined by \-\-if option,
 which also allows to give default input filter.  Output
 filter is specified by \-\-of option.
 .PP
+Now PDF file is preprocessed by ``pdftotext''
+command.  Option \-Z also desables this feature.
+.PP
 .B [EMPHASIZING and BLOCK SEARCH]
 To emphasize the matched part of text, \-Q, \-u and \-b
 options are supported.  This is useful especially used with
@@ -1616,20 +1534,6 @@ file should be written in utf8.  Default file code is also
 utf8.  Use \-\-icode option to specify file code and use
 code name ``guess'' for automatic code recognition.  Use
 \-\-ocode option to specify output code.
-.PP
-.B [ARCHIVE SEARCH]
-If the file is archived file by \fIar\fP(1) or \fItar\fP(1)
-command, each file in the archive will be searched
-individually.  The file name is shown like ``(archive)file''
-for ar format and ``[archive]file'' for tar format.  This
-function works for compressed file of course.  Use \-A
-option if you want to search from entire archived file.
-.PP
-If the file has `.zip' or `.lzh' suffix, the file is
-treated as \fIzip\fP and \fIlha\fP archive
-respectively and each file contained in the archive will be
-the subject of search.  Option \-A disables this feature
-too.  File name is shown as ``{archive}file''.
 .PP
 .B [HANDLE PGP ENCRYPTED FILE]
 \fIMg\fP can search string from PGP-encrypted file.  When
@@ -1967,19 +1871,20 @@ Make bold matched string.  Makes a matched string
 overstruck like ``f^Hfo^Hoo^Ho''.
 .IP \-Q 
 Use a stand-out feature of the terminal to quote the matched
-string (not for JIS).  This option is ignored when the
-standard output is not a terminal.  \-Q is useful
-for long line.  Try
+string.  This option is ignored when the standard output is
+not a terminal.  \-Q is useful for long line.  Try
 .nf
 
 	echo $path | mg \-Q mh
 
 .fi
+.IP \-\-color
+Use terminal color capability to emphasize the matched
+text.  It can be combined with option \-Q.
 .IP \-a 
 Print all contents of the file.  This option makes sense
 only if used with options like \-Q, \-u, \-b, otherwise
-it behaves like \fIcat\fP(1).  Filenames and lines are not
-printed with this option.
+it behaves like \fIcat\fP(1).
 .IP \-s 
 When multiple files are specified, each matched line is
 preceded by ``filename:'' string.  With this option, a
@@ -2072,8 +1977,6 @@ You can use option terminator \-\- for same purpose.
 	mg \-\- \-p file
 
 .fi
-.IP \-A
-Disables archive mode search (ar, tar, zip).
 .IP \-Z 
 Disables automatic uncompress, gunzip.
 .IP "\-J \fIstring\fP"
@@ -2350,12 +2253,6 @@ Hyphenation is not supported.
 .PP
 No capability to find words separated by nroff footer and
 header.
-.PP
-Very long JIS code pattern may not be processed because of a
-limitation of regular expression engine.
-.PP
-Not enough space for new option (try undocumented option
-\-U..., oops, documented here :-).
 .\"------------------------------------------------------------
 .SH LICENSE
 .PP
