@@ -1,14 +1,11 @@
 #!/usr/bin/perl
-'di ';
-'ds 00 \"';
-'ig 00 ';
 ##
 ## mg: multi-line grep
 ##
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.14 2013/10/28 10:33:25 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.14 2013/10/28 10:33:25 utashiro Exp utashiro $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -241,7 +238,7 @@ if ($opt_U) {
 
 ## show man pages
 if ($opt_man) {
-    exec "nroff -Tascii -man $0 |" . ($ENV{'PAGER'} || 'more') . ' -s';
+    exec "perldoc $0";
     die;
 }
 
@@ -1453,815 +1450,759 @@ sub decrypt {
 }
 
 1;
-######################################################################
-.00 ;
 
-'di			\" finish diversion--previous line must be blank
-.nr nl 0-1		\" fake up transition to first page again
-.nr % 0			\" start at page 1
-'; __END__ ############# From here on it's a standard manual page ####
-.de XX
-.ds XX \\$4\ (v\\$3)
-..
-.XX $Id: mg,v 5.0.1.14 2013/10/28 10:33:25 utashiro Exp $
-.\"Many thanks to Ajay Shekhawat for correction of manual pages.
-.TH MG 1 \*(XX
-.AT 3
-.\"------------------------------------------------------------
-.SH NAME
-mg \- multi-line grep
-.\"------------------------------------------------------------
-.SH SYNOPSIS
-\fBmg\fP [ \fBoptions\fP ] \fIpattern\fP [ \fIfile\fP ]
-.\"------------------------------------------------------------
-.SH DESCRIPTION
-\fIMg\fP searches the specified pattern from files or
-standard input and prints lines which contain the search
-pattern.  It has almost the same function as the Unix
-command \fIgrep\fP(1) but is distinguished from \fIgrep\fP
-because the matching is done across the line boundaries.
-.PP
-For example, to find a sentence ``internet control message
-protocol'' from many RFC texts, you can say
-.nf
+=head1 NAME
 
-	mg\ \-i 'internet control message protocol'\ *.txt
+mg - multi-line grep
 
-.fi
-Match will occur for sequence of words `internet',
-`control', `message' and `protocol' separated by any number
-of whitespace characters including newline and null string
-(\-w option avoids null matching).
-.PP
-.B [COMPRESSED FILE SEARCH]
-If the file has `.Z' or `.gz' suffix, the data is
-automatically uncompressed on the fly before search.  Use
-\-Z option to suppress this operation.  Because this
-mechanism is supported in generric framework, any kind of
-suffix and preprocessor pair can be defined by \-\-if option,
-which also allows to give default input filter.  Output
-filter is specified by \-\-of option.
-.PP
-Now PDF file is preprocessed by ``pdftotext''
-command.  Option \-Z also desables this feature.
-.PP
-.B [EMPHASIZING and BLOCK SEARCH]
-To emphasize the matched part of text, \-Q, \-u and \-b
-options are supported.  This is useful especially used with
-block search options.  Option \-c gives the number of
-surrounding lines to be shown along with matched line.
-Option \-o prints the paragraph containing matched text.
-Containing page is with \-g, and entire text is printed with
-\-a option.
-.PP
-.B [RECURSIVE SEARCH]
-\fIMg\fP supports recursive directory search.  Use \-R
-option to enable it.  This option can be combined with \-P/V
-(file name pattern), \-D (descending level), \-F (symbolic
-link control).  Option \-dcd gives you ongoing status.
-.PP
-.B [JAPANESE STRING SEARCH]
-\fIMg\fP is also useful to find a word from Japanese text
-because Japanese words are not separated by whitespaces, and
-newline character can be inserted at any place of the text.
-As a matter of fact, \fImg\fP was originally made for
-Japanese string search.
-.PP
-.B [MULTIBYTE CODE SET HANDLING]
-Search string have to be described in utf8 in both command
-line argument and pattern file (option \-p).  Also .mgrc
-file should be written in utf8.  Default file code is also
-utf8.  Use \-\-icode option to specify file code and use
-code name ``guess'' for automatic code recognition.  Use
-\-\-ocode option to specify output code.
-.PP
-.B [HANDLE PGP ENCRYPTED FILE]
-\fIMg\fP can search string from PGP-encrypted file.  When
-option \-\-pgp is specified, PGP passphrase is asked only
-once, and it is inherited to pgp decrypting subprocesses.
-You may want automatic execution of decryption process
-depending file contents, but it is not supported yet.
-.PP
-.B [BUFFERING POLICY]
-\fIMg\fP reads some amount of data at once, and the last
-portion of the chunk will be searched again with next chunk
-of data.  Default size of data chunk is 512k.
-Search-again-data size is 2k for both.  So if the matched
-segment size is more than 2k bytes, it may be truncated.
-This truncation happens only when the file size is more than
-data chunk size, of course.  You can use \-W option to read
-whole file contents at once.  But it may slow down the
-speed of execution for large file, depending on the
-architecture and configuration of the system.  Maximum read
-and search again size can be specified by \-G option.
-.\"------------------------------------------------------------
-.SH EXTENDED PATTERN SEARCH
-.PP
-\fIMg\fP now supports completely new search method.  This
-feature is invoked by \-x flag, and then the specified
-pattern is interpreted in the different manner.
-.PP
-Pattern string is treated as a colleciton of tokens
-separated by white space.  Each component will be searched
-independently, but only the line which contains all of them
-will be printed.  For example,
-.nf
 
-	mg \-xp 'foo bar buz' ...
+=head1 B<SYNOPSIS>
 
-.fi
-will print lines which contain all of `foo', `bar' and
-`buz'.  They can be found in any order and/or any place in
-the string.  So this command find all of following texts.
-.nf
+B<mg> [ B<options> ] I<pattern> [ I<file> ]
 
-	foo bar buz
-	buz bar foo
-	the foo, bar and buz
 
-.fi
-.PP
-If you want to use OR syntax, prepend question (`?') sign on
-each token, or use regular expression in pattern:
-.nf
+=head1 B<DESCRIPTION>
 
-	mg \-xp 'foo bar buz ?yabba ?dabba ?doo'
-	mg \-exp 'foo bar buz yabba|dabba|doo'
+I<Mg> searches the specified pattern from files or standard input and
+prints lines which contain the search pattern.  It has almost the same
+function as the Unix command L<grep(1)> but is distinguished from
+I<grep> because the matching is done across the line boundaries.
 
-.fi
-This command will print the line which contains all of
-`foo', `bar' and `buz' and one or more from `yabba', `dabba'
-or `doo'.  Note that you need to use \-e option to enable
-regular expression interpretation.
-.PP
-Please be aware that multiple `?' preceded tokens are
-treated all mixed together.  That means `?A|B ?C|D' is
-equivalent to `?A|B|C|D'.  If you want to mean `(A or B) and
-(C or D)', use AND syntax instead of OR: `A|B\ C|D'.
-.PP
-NOT operator can be specified by prefixing the token by
-minus (`-') sign.  Next example will show the line which
-contain both `foo' and `bar' but none of `yabba' or `dabba'
-or `doo'.
-.nf
+For example, to find a sentence ``internet control message protocol''
+from many RFC texts, you can say
 
-	mg \-xp 'foo bar -yabba -dabba -doo'
-	mg \-exp 'foo bar -yabba|dabba|doo'
+    mg -i `internet control message protocol' *.txt
 
-.fi
-It is ok to set plus (`+') sign before positive AND token,
-but it has no effect.
-.PP
-When executed with \-o option, the paragraph which contains
-all these components will be found.  This style is much more
-useful, actually.
-.PP
-You can't use double quote to include white space within
-each token.  Separate options are prepared to specify each
-component individually; \-\-\fIand\fP, \-\-\fIor\fP and
-\-\-\fInot\fP.  These options can be used multiple times.
-.nf
+Match will occur for sequence of words `internet', `control', message'
+and `protocol' separated by any number of whitespace characters
+including newline and null string (-w option avoids null matching).
 
-	mg \-\-and 'foo bar' \-\-and buz \-\-or 'yabba dabba' \-\-or doo ...
+B<[COMPRESSED FILE SEARCH]> If the file has `.Z' or `.gz' suffix, the
+data is automatically uncompressed on the fly before search.  Use -Z
+option to suppress this operation.  Because this mechanism is
+supported in generric framework, any kind of suffix and preprocessor
+pair can be defined by --if option, which also allows to give default
+input filter.  Output filter is specified by --of option.
 
-.fi
-.PP
-Long option \-\-\fIxp\fP is equivalent to the combination of
-\-x and (optional) \-p options.  Author decided to override
-single character option \-x, to make it possible using in
-this way:
-.nf
+Now PDF file is preprocessed by ``pdftotext'' command.  Option -Z also
+desables this feature.
 
-	mg \-oeiQxp 'foo bar buz' ...
+B<[EMPHASIZING and BLOCK SEARCH]> To emphasize the matched part of
+text, -Q, -u and -b options are supported.  This is useful especially
+used with block search options.  Option -c gives the number of
+surrounding lines to be shown along with matched line.  Option -o
+prints the paragraph containing matched text.  Containing page is with
+-g, and entire text is printed with -a option.
 
-.fi
-.\"------------------------------------------------------------
-.SH ENVIRONMENT and STARTUP FILE
-Environment variable MGOPTS is used as a default options.
-They are inserted before command line options.
-.PP
-Before starting execution, \fImg\fP reads the file named
-``.mgrc'' on user's home directory.  In .mgrc file, user can
-define own option name.  There are two directives can be used
-in .mgrc file: `option' and `define'.  First argument of
-`option' directive is user defined option name.  The rest
-are processed by \fIshellwords\fP routine defined by
-Text::ParseWords module.
-.nf
+B<[RECURSIVE SEARCH]> I<Mg> supports recursive directory search.  Use
+-R option to enable it.  This option can be combined with -P/V (file
+name pattern), -D (descending level), -F (symbolic link control).
+Option -dcd gives you ongoing status.
 
-	option mh \-RT \-P '[0-9]*'
+B<[JAPANESE STRING SEARCH]> I<Mg> is also useful to find a word from
+Japanese text because Japanese words are not separated by whitespaces,
+and newline character can be inserted at any place of the text.  As a
+matter of fact, I<mg> was originally made for Japanese string search.
 
-.fi
-.PP
-User definable option is specified by preceding option
-name by `-:' string.
-.nf
+B<[MULTIBYTE CODE SET HANDLING]> Search string have to be described in
+utf8 in both command line argument and pattern file (option -p).  Also
+.mgrc file should be written in utf8.  Default file code is also utf8.
+Use --icode option to specify file code and use code name ``guess''
+for automatic code recognition.  Use --ocode option to specify output
+code.
 
-	mg \-:mh pattern ~/Mail
+B<[HANDLE PGP ENCRYPTED FILE]> I<Mg> can search string from
+PGP-encrypted file.  When option --pgp is specified, PGP passphrase is
+asked only once, and it is inherited to pgp decrypting subprocesses.
+You may want automatic execution of decryption process depending file
+contents, but it is not supported yet.
 
-.fi
-.PP
-Another directive `define' is almost same as `option', but
-argument is not processed by \fIshellwords\fP and treated
-just a simple text.  You can include metacharacters without
-escaping.
-.nf
+B<[BUFFERING POLICY]> I<Mg> reads some amount of data at once, and the
+last portion of the chunk will be searched again with next chunk of
+data.  Default size of data chunk is 512k.  Search-again-data size is
+2k for both.  So if the matched segment size is more than 2k bytes, it
+may be truncated.  This truncation happens only when the file size is
+more than data chunk size, of course.  You can use -W option to read
+whole file contents at once.  But it may slow down the speed of
+execution for large file, depending on the architecture and
+configuration of the system.  Maximum read and search again size can
+be specified by -G option.
 
-	define mails [0-9]*
-	option mh \-RT \-P \-:mails
 
-.fi
-.PP
-When \fImg\fP found `__CODE__' line in .mgrc file, the rest
-of the file is evaluated as a Perl program.  You can define
-your own subroutines which can be used by \-\-prep,
-\-\-include, \-\-exclude options.  For those subroutines,
-file content will be provided by global variable $_.
-Expected response from the subroutine is the list of
-numbers, which is made up by start and end offset pairs.
-.PP
-For example, suppose that the following function is defined
-in your .mgrc file.
-.nf
+=head1 B<EXTENDED PATTERN SEARCH>
 
-	__CODE__
-	sub odd_line {
-	    my @list;
-	    my $i;
-	    while (/.*\en/g) {
-	        push(@list, $-[0], $+[0]) if ++$i % 2;
-	    }
-	    @list;
-	}
+I<Mg> now supports completely new search method.  This feature is
+invoked by -x flag, and then the specified pattern is interpreted in
+the different manner.
 
-.fi
-You can use next command to search pattern included in
-odd number lines.
-.nf
+Pattern string is treated as a colleciton of tokens separated by white
+space.  Each component will be searched independently, but only the
+line which contains all of them will be printed.  For example,
 
-	% mg \-\-include &odd_line patten files...
+    mg -xp `foo bar buz' ...
 
-.fi
-.PP
-If you do not want to evaluate those programs in all
-invocation of the command, use \-\-require option to include
-arbitrary perl program files.
-.\"------------------------------------------------------------
-.SH OPTIONS
-.LP
-.B GREP COMPATIBLE OPTIONS:
-.IP \-i
+will print lines which contain all of `foo', `bar' and `buz'.  They
+can be found in any order and/or any place in the string.  So this
+command find all of following texts.
+
+    foo bar buz
+    buz bar foo
+    the foo, bar and buz
+
+If you want to use OR syntax, prepend question (`?') sign on each
+token, or use regular expression in pattern:
+
+    mg -xp `foo bar buz ?yabba ?dabba ?doo'
+    mg -exp `foo bar buz yabba|dabba|doo'
+
+This command will print the line which contains all of `foo', `bar'
+and `buz' and one or more from `yabba', `dabba' or `doo'.  Note that
+you need to use -e option to enable regular expression interpretation.
+
+Please be aware that multiple `?' preceded tokens are treated all
+mixed together.  That means `?A|B ?C|D' is equivalent to `?A|B|C|D'.
+If you want to mean `(A or B) and (C or D)', use AND syntax instead of
+OR: `A|B C|D'.
+
+NOT operator can be specified by prefixing the token by minus (`-')
+sign.  Next example will show the line which contain both `foo' and
+bar' but none of `yabba' or `dabba' or `doo'.
+
+    mg -xp `foo bar -yabba -dabba -doo'
+    mg -exp `foo bar -yabba|dabba|doo'
+
+It is ok to set plus (`+') sign before positive AND token, but it has
+no effect.
+
+When executed with -o option, the paragraph which contains all these
+components will be found.  This style is much more useful, actually.
+
+You can't use double quote to include white space within each token.
+Separate options are prepared to specify each component individually;
+--I<and>, --I<or> and --I<not>.  These options can be used multiple
+times.
+
+    mg --and `foo bar' --and buz --or `yabba dabba' --or doo ...
+
+Long option --I<xp> is equivalent to the combination of -x and
+(optional) -p options.  Author decided to override single character
+option -x, to make it possible using in this way:
+
+    mg -oeiQxp `foo bar buz' ...
+
+
+=head1 B<ENVIRONMENT and STARTUP FILE>
+
+Environment variable MGOPTS is used as a default options.  They are
+inserted before command line options.
+
+Before starting execution, I<mg> reads the file named ``.mgrc'' on
+user's home directory.  In .mgrc file, user can define own option
+name.  There are two directives can be used in .mgrc file: `option'
+and `define'.  First argument of `option' directive is user defined
+option name.  The rest are processed by I<shellwords> routine defined
+by Text::ParseWords module.
+
+    option mh -RT -P `[0-9]*'
+
+User definable option is specified by preceding option name by `-:'
+string.
+
+    mg -:mh pattern ~/Mail
+
+Another directive `define' is almost same as `option', but argument is
+not processed by I<shellwords> and treated just a simple text.  You
+can include metacharacters without escaping.
+
+    define mails [0-9]*
+    option mh -RT -P -:mails
+
+When I<mg> found `__CODE__' line in .mgrc file, the rest of the file
+is evaluated as a Perl program.  You can define your own subroutines
+which can be used by --prep, --include, --exclude options.  For those
+subroutines, file content will be provided by global variable $_.
+Expected response from the subroutine is the list of numbers, which is
+made up by start and end offset pairs.
+
+For example, suppose that the following function is defined in your
+.mgrc file.
+
+    __CODE__
+    sub odd_line {
+        my @list;
+        my $i;
+        while (/.*\n/g) {
+            push(@list, $-[0], $+[0]) if ++$i % 2;
+        }
+            @list;
+    }
+
+You can use next command to search pattern included in odd number
+lines.
+
+    % mg --include &odd_line patten files...
+
+If you do not want to evaluate those programs in all invocation of the
+command, use --require option to include arbitrary perl program files.
+
+
+=head1 B<OPTIONS>
+
+B<GREP COMPATIBLE OPTIONS:>
+
+=over 7
+
+=item -i 
+
 Ignore case.
-.IP \-l
+
+=item -l 
+
 List filename only.
-.IP \-n
+
+=item -n 
+
 Show line number.
-.IP \-h
-Do not display filenames even if multiple filenames are
-specified by command line.
-.IP \-H
-Display filename even if single file is specified by
+
+=item -h 
+
+Do not display filenames even if multiple filenames are specified by
 command line.
-.LP
-.B SLIGHTLY DIFFERENT OPTIONS:
-.IP \-w 
-Word sensitive.  Match occurs only when both beginning and
-end of pattern is on word boundary.  Also space characters
-in the pattern doesn't match to the null string.
-.IP "\-v \fIpattern\fP"
-Skip the line if matched with pattern.  Don't print the
-matched line if it matched the pattern specified with this
-option.  This option doesn't have any effect when used with
-\-a or \-l option.
-.LP
-.B OTHER OPTIONS:
-.IP "\-d \fIflags\fP"
-Display informations.  Various kind of debug, diagnostic,
-monitor information can be display by giving appropriate
-flag to \-d option.
-.nf
 
-	f: processing file name
-	d: processing directory name
-	t: processing file modified time
-	c: count of processing files
-	s: statistic information
-	m: misc debug information
-	o: option related information
-	p: run `ps' command before termination (on Unix)
+=item -H 
 
-.fi
-You may want to use ``\-dcd'' option to monitor what is
-going on during recursive search.
-.IP \-N
-Print byte offset of matched string.  If multiple matching
-occurred in one line, only the first matching offset is
-printed.  Use \-2 option to avoid it.
-.IP \-e 
-Use the pattern as a regular expression in 
-.IR perl (1)
-but space is treated specially.  With this option, you can
-use \fImg\fP like \fIegrep\fP(1) like this:
-.nf
+Display filename even if single file is specified by command line.
 
-	mg \-e 'foo bar|\^goo car|\^hoo dar' ...
+=back
 
-.fi
-See \fIperl\fP(1) for detail of regular expression.  Slash
-characters (/) in expression don't have to be escaped.
-.IP ""
-Option \-w puts \eb's at the beginning and the end of the
-pattern.  So the pattern ``foo|bar'' becomes
-``\ebfoo|bar\eb''.  You probably want to use
-``foo\eb|\ebbar'' instead.
-.IP \-E
-Use the pattern as regular expression in \fIperl\fP
-completely.
-.IP \-r
-Specify restriction pattern.  A file becomes a subject for
-search only when the pattern specified by \-r option is
-found in the file.  Next two examples are equivalent.
-.nf
+B<SLIGHTLY DIFFERENT OPTIONS:>
 
-	mg \-e ^Subject: `mg \-le "^From: lwall" *`
+=over 7
 
-	mg \-er '^From: lwall' ^Subject: *
+=item -w 
 
-.fi
-File will be swallowed at one time even if \-W option is not
-supplied.
-.IP "\-c \fIn[,n]\fP"
-Print n-lines before/after matched line.  Default n is 1,
-which means only one line is displayed.  N is number of
-newlines surrounding matched pattern.  If ``\-c\ 3''
-options is supplied, two lines before and after matched
-line will be displayed together.  You can see only after
-two lines by ``\-c 1,3'' option.
-.IP ""
-Option \-c0 displays matched string only.  Next example is
-almost equivalent to \fIstrings\fP(1) command with \-oa
-option.
-.nf
+Word sensitive.  Match occurs only when both beginning and end
+of pattern is on word boundary.  Also space characters in the
+pattern doesn't match to the null string.
 
-	mg \-NEc0 '[ \et\e040-\e176]{4,}' file
+=item -v I<pattern>
 
-.fi
-.IP "\-o"
-Print the paragraph which contains the pattern.  Each
-paragraph is delimited by two or more successive newline
-characters by default.  Be aware that an empty line is not
-paragraph delimiter if which contains space characters.
-Example:
-.nf
+Skip the line if matched with pattern.  Don't print the matched
+line if it matched the pattern specified with this option.  This
+option doesn't have any effect when used with -a or -l option.
 
-	mg \-nQo 'setuid script' /usr/man/catl/perl.l
+=back
 
-	mg \-o sockaddr /usr/include/sys/socket.h
+B<OTHER OPTIONS:>
 
-.fi
-If \-c option is also supplied and there are more lines in
-the paragraph, continuous mark is displayed.
-.IP "\-O \fIstring\fP"
-Specify paragraph delimiter string as well as activate the
-paragraph mode.  The contents of string is evaluated as is
-inside double-quote not as a regular expression.  For
-example, you can get lines between troff macros like this:
-.nf
+=over 7
 
-	mg \-QoO "\en." 'setuid script' /usr/man/manl/perl.l
+=item -d I<flags>
 
-.fi
-.IP "\-g \fIlines\fP"
-Page mode.  Provided number of lines for each pages, pages
-which contains the pattern will be displayed.  For example,
-you can get pages which contain some strings from nroff'ed
-text like this:
-.nf
+Display informations.  Various kind of debug, diagnostic, monitor
+information can be display by giving appropriate flag to -d option.
 
-	mg \-Q \-g 66 'setuid script' /usr/man/catl/perl.l
+    f: processing file name
+    d: processing directory name
+    t: processing file modified time
+    c: count of processing files
+    s: statistic information
+    m: misc debug information
+    o: option related information
+    p: run `ps' command before termination (on Unix)
 
-.fi
-You can't use \-c with this option.  Formfeed is not
-supported currently.
-.IP "\-C \fIchars\fP"
-Continuous character.  If you want search sentence continued
-by other than white space characters, continuous characters
-can be set by this options.  For example, next command finds
-a sentence even if it is quoted by `>' or `|' mark.
-.nf
+You may want to use ``-dcd'' option to monitor what is going on during
+recursive search.
 
-	mg \-C '>\^|\^' 'ninja shogun fujiyama' `mhpath all`
+=item -N 
 
-.fi
+Print byte offset of matched string.  If multiple matching occurred in
+one line, only the first matching offset is printed.  Use -2 option to
+avoid it.
+
+=item -e 
+
+Use the pattern as a regular expression in L<perl(1)> but space is
+treated specially.  With this option, you can use I<mg> like
+L<egrep(1)> like this:
+
+    mg -e `foo bar|goo car|hoo dar' ...
+
+See L<perl(1)> for detail of regular expression.  Slash characters (/)
+in expression don't have to be escaped.
+
+Option -w puts \b's at the beginning and the end of the pattern.  So
+the pattern ``foo|bar'' becomes ``\bfoo|bar\b''.  You probably want to
+use ``foo\b|\bbar'' instead.
+
+=item -E 
+
+Use the pattern as regular expression in I<perl> completely.
+
+=item -r 
+
+Specify restriction pattern.  A file becomes a subject for search only
+when the pattern specified by -r option is found in the file.  Next
+two examples are equivalent.
+
+    mg -e ^Subject: `mg -le "^From: lwall" *`
+
+    mg -er `^From: lwall' ^Subject: *
+
+File will be swallowed at one time even if -W option is not supplied.
+
+=item -c I<n[,n]>
+
+Print n-lines before/after matched line.  Default n is 1, which means
+only one line is displayed.  N is number of newlines surrounding
+matched pattern.  If ``-c 3'' options is supplied, two lines before
+and after matched line will be displayed together.  You can see only
+after two lines by ``-c 1,3'' option.
+
+Option -c0 displays matched string only.  Next example is almost
+equivalent to L<strings(1)> command with -oa option.
+
+    mg -NEc0 `[ \t\040-\176]{4,}' file
+
+=item -o 
+
+Print the paragraph which contains the pattern.  Each paragraph is
+delimited by two or more successive newline characters by default.  Be
+aware that an empty line is not paragraph delimiter if which contains
+space characters.  Example:
+
+    mg -nQo `setuid script' /usr/man/catl/perl.l
+
+    mg -o sockaddr /usr/include/sys/socket.h
+
+If -c option is also supplied and there are more lines in the
+paragraph, continuous mark is displayed.
+
+=item -O I<string>
+
+Specify paragraph delimiter string as well as activate the paragraph
+mode.  The contents of string is evaluated as is inside double-quote
+not as a regular expression.  For example, you can get lines between
+troff macros like this:
+
+    mg -QoO "\n." `setuid script' /usr/man/manl/perl.l
+
+=item -C I<chars>
+
+Continuous character.  If you want search sentence continued by other
+than white space characters, continuous characters can be set by this
+options.  For example, next command finds a sentence even if it is
+quoted by `>' or `|' mark.
+
+    mg -C `>|' `ninja shogun fujiyama' `mhpath all`
+
 To search a pattern in C style comments:
-.nf
 
-	mg \-C '/*' 'setuid scripts' perl.c
+    mg -C `/*' `setuid scripts' perl.c
 
-.fi
-.IP ""
-Note that continuous characters don't have to be found only
-top of the string.  So ``foo\ bar'' matches a string
-``foo>>bar'' on the previous example.
-.IP \-u 
-Underline matched string.  Makes a matched string underlined
-by precede each character by ``_^H''.
-.IP \-b 
-Make bold matched string.  Makes a matched string
-overstruck like ``f^Hfo^Hoo^Ho''.
-.IP \-Q 
+Note that continuous characters don't have to be found only top
+of the string.  So ``foo bar'' matches a string ``foo>>bar'' on
+the previous example.
+
+=item -u 
+
+Underline matched string.  Makes a matched string underlined by
+precede each character by ``_^H''.
+
+=item -b 
+
+Make bold matched string.  Makes a matched string overstruck
+like ``f^Hfo^Hoo^Ho''.
+
+=item -Q 
+
 Use a stand-out feature of the terminal to quote the matched
-string.  This option is ignored when the standard output is
-not a terminal.  \-Q is useful for long line.  Try
-.nf
+string.  This option is ignored when the standard output is not
+a terminal.  -Q is useful for long line.  Try
 
-	echo $path | mg \-Q mh
+    echo $path | mg -Q mh
 
-.fi
-.IP \-\-color
-Use terminal color capability to emphasize the matched
-text.  It can be combined with option \-Q.
-.IP \-a 
-Print all contents of the file.  This option makes sense
-only if used with options like \-Q, \-u, \-b, otherwise
-it behaves like \fIcat\fP(1).
-.IP \-s 
-When multiple files are specified, each matched line is
-preceded by ``filename:'' string.  With this option, a
-newline character is inserted between the filename and
-matched line.  This option is useful when the filenames are
-very long.
-.IP \-2 
-Usually only one line is displayed even if multiple matching
-occurs for the same line.  With this option, each match
-will be displayed in different line.
-.IP \-R 
-Search recursively.  Only files specified by command line
-arguments are searched by default.  When invoked with this
-option and arguments contain a directory, it is searched
-recursively.  Can be used with \-P.
-.IP "\-D \fIlevel\fP"
-Descending directory level.  This option specifies how many
-levels of directory is to be searched from top directory.
-.IP "\-P \fIpattern\fP"
-Search file pattern.  When directories are searched
-recursively, only files which match the `pattern' are
-searched.  A `pattern' is specified in wildcard format same
-as shell and `|\^' character can be used for alternative in
-addition.  For example, you can find a string ``foobar''
-from all C source files and makefiles like this:
-.nf
+=item --color
 
-	mg \-RP '*.c|\^[Mm]akefile' foobar /usr/src
+Use terminal color capability to emphasize the matched text.  It
+can be combined with option -Q.
 
-.fi
-.IP "\-V \fIpattern\fP"
-Exception file pattern.  This is a counterpart of \-P.  Only
-files which DO NOT match the pattern will be searched.
-.nf
+=item -a 
 
-	mg \-RV '*.[oas]' foobar /usr/src
+Print all contents of the file.  This option makes sense only if
+used with options like -Q, -u, -b, otherwise it behaves like
+L<cat(1)>.
 
-.fi
-.IP ""
-Note that the \-V option is also applied to a directory name
-while \-P option has an effect only for a file.  This means
-you can specify a directory name to skip, but can't specify
-a directory name to search.
-.IP \-F
-Follow symbolic link of a directory.  Doesn't follow by
-default.
-.IP \-L
+=item -s 
+
+When multiple files are specified, each matched line is preceded by
+filename:'' string.  With this option, a newline character is inserted
+between the filename and matched line.  This option is useful when the
+filenames are very long.
+
+=item -2 
+
+Usually only one line is displayed even if multiple matching occurs
+for the same line.  With this option, each match will be displayed in
+different line.
+
+=item -R 
+
+Search recursively.  Only files specified by command line arguments
+are searched by default.  When invoked with this option and arguments
+contain a directory, it is searched recursively.  Can be used with -P.
+
+=item -D I<level>
+
+Descending directory level.  This option specifies how many levels of
+directory is to be searched from top directory.
+
+=item -P I<pattern>
+
+Search file pattern.  When directories are searched recursively, only
+files which match the `pattern' are searched.  A `pattern' is
+specified in wildcard format same as shell and `|' character can be
+used for alternative in addition.  For example, you can find a string
+foobar'' from all C source files and makefiles like this:
+
+    mg -RP `*.c|[Mm]akefile' foobar /usr/src
+
+=item -V I<pattern>
+
+Exception file pattern.  This is a counterpart of -P.  Only files
+which DO NOT match the pattern will be searched.
+
+    mg -RV `*.[oas]' foobar /usr/src
+
+Note that the -V option is also applied to a directory name while -P
+option has an effect only for a file.  This means you can specify a
+directory name to skip, but can't specify a directory name to search.
+
+=item -F 
+
+Follow symbolic link of a directory.  Doesn't follow by default.
+
+=item -L 
+
 Print formfeed between each matchings.  Print the formfeed
-character before each matched line.  This options is useful
-when used with \-c option and piped to pager command.
-.IP \-S 
-Get filenames from standard input.  Read standard input and
-use each line as a filename for searching.  You can feed the
-output from other command like \fIfind\fP(1) for \fImg\fP
-with this option.  Next example searches string from files
-modified within 7 days:
-.nf
+character before each matched line.  This options is useful when
+used with -c option and piped to pager command.
 
-	find . \-mtime \-7 \-print | mg \-S pattern
+=item -S 
 
-.fi
+Get filenames from standard input.  Read standard input and use each
+line as a filename for searching.  You can feed the output from other
+command like L<find(1)> for I<mg> with this option.  Next example
+searches string from files modified within 7 days:
+
+    find . -mtime -7 -print | mg -S pattern
+
 Next example search the files from the newest first order:
-.nf
 
-	ls -t | mg \-S pattern
+    ls -t | mg -S pattern
 
-.fi
-.IP ""
-You can use \-dt option to monitor modified date of processing
+You can use -dt option to monitor modified date of processing
 files.
-.IP \-m 
+
+=item -m 
+
 Print matched line only when the pattern is across the line.
-.IP \-M 
-Print matched line only when multiple matching occurred for
-the same line.
-.IP "\-f \fIfile\fP"
-Specify the file which contains search pattern.  When file
-contains multiple lines, patterns on each lines are search
-in OR context.  The line starting with sharp (#) character is
-ignored.
-.IP "\-p pattern"
-Specify search pattern.  You don't have to use this option
-explicitly because the first argument after options will be
-treated as a pattern.  Typical case of using this option is
-specifying string which can be taken as a command option.
-You can use option terminator \-\- for same purpose.
-.nf
 
-	mg \-p \-p file
-	mg \-\- \-p file
+=item -M 
 
-.fi
-.IP \-Z 
+Print matched line only when multiple matching occurred for the same
+line.
+
+=item -f I<file>
+
+Specify the file which contains search pattern.  When file contains
+multiple lines, patterns on each lines are search in OR context.  The
+line starting with sharp (#) character is ignored.
+
+=item -p pattern
+
+Specify search pattern.  You don't have to use this option explicitly
+because the first argument after options will be treated as a pattern.
+Typical case of using this option is specifying string which can be
+taken as a command option.  You can use option terminator -- for same
+purpose.
+
+    mg -p -p file
+    mg -- -p file
+
+=item -Z 
+
 Disables automatic uncompress, gunzip.
-.IP "\-J \fIstring\fP"
-Convert newline character(s) found in matched string to
-specifed \fIstring\fP.  Using \-J with \-c0 option, you can
-collect searching sentence list in one per line form.  This
-is almost useless for English text but sometimes useful for
-Japanese text.  For example next command prints the list of
-KATAKANA words used in the Shift-JIS texts.
-.nf
 
-	set kana='\e203[\e100-\e226]|\e201\e133'
-	set p="($kana)($kana|\es)*"
-	mg \-Ec0 \-J '' "$p" files | sort | uniq \-c
+=item -J I<string>
 
-.fi
-Note that this command is confused when 2nd byte and 1st
-byte of next chararacter matches KATAKANA pattern.
-.IP ""
-Another example.  If you wonder how the word ``CRC'' is used
-in RFCs, you can do it like this:
-.nf
+Convert newline character(s) found in matched string to specifed
+I<string>.  Using -J with -c0 option, you can collect searching
+sentence list in one per line form.  This is almost useless for
+English text but sometimes useful for Japanese text.  For example next
+command prints the list of KATAKANA words used in the Shift-JIS texts.
 
-	mg -h -c0 -J' ' -ei 'Cyclic Redundancy C\ew+' rfc*.txt
+    set kana='\203[\100-\226]|\201\133'
+    set p="($kana)($kana|\s)*"
+    mg -Ec0 -J `' "$p" files | sort | uniq -c
 
-.fi
-.IP "\-0\fIdigits\fP"
-Specifies the record separator as an octal number.  It is
-almost same as perl option.  But unlike perl, only the first
-record is read for search.  Like perl, \-00 means paragraph
-mode.  Actually I added this option only to use \-00 to
-search from mail and news header portion.  When reading from
-archived file, \fImg\fP emulates perl's $/ behaviour.
-.IP \-W
+Note that this command is confused when 2nd byte and 1st byte of next
+chararacter matches KATAKANA pattern.
+
+Another example.  If you wonder how the word ``CRC'' is used in RFCs,
+you can do it like this:
+
+    mg -h -c0 -J' ` -ei `Cyclic Redundancy C\w+' rfc*.txt
+
+=item -0I<digits>
+
+Specifies the record separator as an octal number.  It is almost same
+as perl option.  But unlike perl, only the first record is read for
+search.  Like perl, -00 means paragraph mode.  Actually I added this
+option only to use -00 to search from mail and news header portion.
+When reading from archived file, I<mg> emulates perl's $/ behaviour.
+
+=item -W 
+
 Slurp whole file at once.
-.IP "\-G \fImaxreadsize\fP[,\fIkeepsize\fP]"
-Specify maximum read size and keep buffer size for next
-read.  Default values for these sizes are 512k and 2k bytes.
-\fIMg\fP tries to read a file up to maximum read size at a
-same time.  Last part of the buffer, specified by keep
-buffer size, is not thrown away but will be used as a
-subject for search with next buffer.  In arguments, you can
-use B, K, and M for block (512), kilo (1024) and mega (1024
-* 1024) respectively.  Next example sets maximum read size
-for 100K and keep buffer size for 10K bytes.
-.nf
 
-	mg \-iBG 100K,10K unix /vmunix
+=item -G I<maxreadsize>[,I<keepsize>]
 
-.fi
-.IP \-1
-Print first match only.  This option doesn't work well
-with \-a option.
-.IP "\-\-man"
+Specify maximum read size and keep buffer size for next read.  Default
+values for these sizes are 512k and 2k bytes.  I<Mg> tries to read a
+file up to maximum read size at a same time.  Last part of the buffer,
+specified by keep buffer size, is not thrown away but will be used as
+a subject for search with next buffer.  In arguments, you can use B,
+K, and M for block (512), kilo (1024) and mega (1024 * 1024)
+respectively.  Next example sets maximum read size for 100K and keep
+buffer size for 10K bytes.
+
+    mg -iBG 100K,10K unix /vmunix
+
+=item -1 
+
+Print first match only.  This option doesn't work well with -a
+option.
+
+=item --man 
+
 Show manual page.
-.IP "\--icode \fIcode\fP"
-Target file is assumed to be encoded in utf8 by default.
-Use this option to set specific encoding.  When handling
-Japanese text, you may choose from 7bit-jis (jis), euc-jp or
-shiftjis (sjis).  Multiple code can be supplied using
-multiple option or combined code names with space or comma,
-then file encoding is guessed from those code sets.  Use
-encoding name `guess' for automatic recognition from default
-code list which is euc-jp and 7bit-jis.  Following commands
-are equivalent.
-.nf
 
-	% mg --icode=guess ...
-	% mg --icode=euc-jp,7bit-jis ...
-	% mg --icode=euc-jp --icode=7bit-jis ...
+=item --icode I<code>
 
-.fi
-Default code set are always included suspect code list.  If
-you have just one code adding to suspect list, put + mark
-before code name.  Next example does automatic code
-detection from euc-kr, ascii, utf8 and UTF−16/32.
-.nf
+Target file is assumed to be encoded in utf8 by default.  Use this
+option to set specific encoding.  When handling Japanese text, you may
+choose from 7bit-jis (jis), euc-jp or shiftjis (sjis).  Multiple code
+can be supplied using multiple option or combined code names with
+space or comma, then file encoding is guessed from those code sets.
+Use encoding name `guess' for automatic recognition from default code
+list which is euc-jp and 7bit-jis.  Following commands are equivalent.
 
-	% mg --icode=+euc-kr ...
+    % mg --icode=guess ...
+    % mg --icode=euc-jp,7bit-jis ...
+    % mg --icode=euc-jp --icode=7bit-jis ...
 
-.fi
-.IP "\--ocode \fIcode\fP"
+Default code set are always included suspect code list.  If you have
+just one code adding to suspect list, put + mark before code name.
+Next example does automatic code detection from euc- kr, ascii, utf8
+and UTF^a16/32.
+
+    % mg --icode=+euc-kr ...
+
+=item --ocode I<code>
+
 Specify output code.  Default is utf8.
-.IP "\-\-if \fIfilter\fP (or \fIEXP:filter:EXP:filter:...\fP)"
-You can specify filter command which is applied to each
-files before search.  If filter information include multiple
-fields separated by colons, first field is perl expression
-to check the filename saved in variable $_.  These
-expression and command list can be repeated.  If only one
-filter command is specified, it is applied to all files.
+
+=item --if I<filter> (or I<EXP:filter:EXP:filter:...>)
+
+You can specify filter command which is applied to each files before
+search.  If filter information include multiple fields separated by
+colons, first field is perl expression to check the filename saved in
+variable $_.  These expression and command list can be repeated.  If
+only one filter command is specified, it is applied to all files.
 Examples:
-.nf
 
-	mg \-\-if 'dd conv=ascii' string spoiled_files
-	mg \-\-if '/\e.tar$/:tar tvf \-' pattern *
-.fi
-.IP ""
-If the command doesn't accept standard input as processing
-data, you may be able to use special device:
-.nf
+    mg --if `dd conv=ascii' string spoiled_files
+    mg --if `/\.tar$/:tar tvf -' pattern *
 
-	mg \-Qz 'nm /dev/stdin' crypt /usr/lib/lib*.a
+If the command doesn't accept standard input as processing data, you
+may be able to use special device:
 
-.fi
-.IP ""
-Filters for compressed and gzipped file is set by default
-unless \-Z option is given.  Default action is:
-.nf
+    mg -Qz `nm /dev/stdin' crypt /usr/lib/lib*.a
 
-	mg \-\-if 's/\e.Z$//:zcat:s/\e.g?z$//:gunzip \-c'
+Filters for compressed and gzipped file is set by default unless -Z
+option is given.  Default action is:
 
-.fi
-.IP "\-\-prep \fIexp\fP"
-You can specify the any Perl expression to preprocess input
-data.  Some subroutine will be available for this purpose
-but currently only ``&mime'' is prepared.  If ``require''
-operator is included in \fIexp\fP, it is executed only once.
-So you can include your special perl library and use the
-subroutine defined in it.
-.RS
-.IP &mime
-Subroutine ``mime'' decodes encoded string based on RFC1342
-MIME header encoding but current implementation handles only
-ISO-2022-JP encoding.  Example:
-.nf
+    mg --if `s/\.Z$//:zcat:s/\.g?z$//:gunzip -c'
 
-	mg \-\-prep '&mime' \-00 From ~/Mail/inbox/*
+=item --prep I<exp>
 
-.fi
-.RE
-.IP ""
+You can specify the any Perl expression to preprocess input data.
+Some subroutine will be available for this purpose but currently only
+&mime'' is prepared.  If ``require'' operator is included in I<exp>,
+it is executed only once.  So you can include your special perl
+library and use the subroutine defined in it.
+
+&mime  Subroutine ``mime'' decodes encoded string based on
+RFC1342 MIME header encoding but current implementation
+handles only ISO-2022-JP encoding.  Example:
+
+    mg --prep `&mime' -00 From ~/Mail/inbox/*
+
 Note that, this process is done just before a search for the
-output from input filter if \-\-if option is specified.  So in
-the above example, MIME encoded string is converted into
-ISO-2022-JP even if the input filter was specified to
-convert the all data into EUC.
-.IP "\-\-body"
-Search only from message body.  This is the reverse of \-00
-option; it skips RFC822 message header before string search.
-You can find emails which contains string "Subject" in its
-message body by this command:
-.nf
+output from input filter if --if option is specified.  So in the
+above example, MIME encoded string is converted into ISO-2022-JP
+even if the input filter was specified to convert the all data
+into EUC.
 
-	mg \-\-body Subject *
+=item --body
 
-.fi
+Search only from message body. 
+
+This is the reverse of -00 option; it skips RFC822 message header
+before string search.  You can find emails which contains string
+"Subject" in its message body by this command:
+
+    mg --body Subject *
+
 Otherwise it matches all normal emails.
-.IP "\-\-pgp"
-Invoke PGP decrypt command for all files.  PGP passphrase is
-asked only once at the beginning of command execution.
-.IP "\-\-pgppass"
-You can specify PGP passphrase by this option.  Generally,
-it is not recommended to use.
-.IP "\-\-exclude \fIpattern\fP"
-Specify the pattern which should be excluded from searching.
-For example, next command searches string `if' from C source,
-excluding comment part.
-.nf
 
-	mg \-\-exclude '(?s)/\e*.*?\e*/' if *.c
+=item --pgp 
 
-.fi
-Since this option is not implemented by preprocessor, line
-numbers are still correct and excluded part can be included
-in surrounding area by other option such as \-o.
-.IP "\-\-exclude \fI&function\fP"
-If the pattern name begins by ampersand (&) character, it is
-treated as a name of subroutine which returns a list to
-exclude.  Using this option, user can use arbitrary function
-to determine from what part of the text they want to search.
-User defined function is written in .mgrc file or explicitly
-included by \-\-require option.
-.nf
+Invoke PGP decrypt command for all files.  PGP passphrase is asked
+only once at the beginning of command execution.
 
-	mg \-\-require mycode.pl \-\-exclude '&myfunc' pattern *
+=item --pgppass
 
-.fi
-Argument can be specified after function name with =
-character.  Next example is equivalent to the above example
-(works on 5.6 or later).
-.nf
+You can specify PGP passphrase by this option.  Generally, it is not
+recommended to use.
 
-	sub myfunc {
-	    my($pattern) = @_;
-	    my @matched;
-	    my $re = qr/$pattern/m;
-	    while (/$re/g) {
-	        push(@matched, $-[0], $+[0]);
-	    }
-	    @matched;
-	}
+=item --exclude I<pattern>
 
-	mg \-\-exclude '&myfunc=(?s)/\e*.*?\e*/' if *.c
+Specify the pattern which should be excluded from searching.  For
+example, next command searches string `if' from C source, excluding
+comment part.
 
-.fi
-\-\-exclude and \-\-include option can be specified
-simultaneously and multiple times.
-.IP "\-\-include \fIpattern\fP"
-Opposite for \-\-exclude.  Next command searches string `if'
-only from C source comment.
-.nf
+    mg --exclude `(?s)/\*.*?\*/' if *.c
 
-	mg \-\-include '(?s)/\e*.*?\e*/' if *.c
+Since this option is not implemented by preprocessor, line numbers are
+still correct and excluded part can be included in surrounding area by
+other option such as -o.
 
-.fi
-.IP "\-\-require \fIfilename\fP"
+=item --exclude I<&function>
+
+If the pattern name begins by ampersand (&) character, it is treated
+as a name of subroutine which returns a list to exclude.  Using this
+option, user can use arbitrary function to determine from what part of
+the text they want to search.  User defined function is written in
+.mgrc file or explicitly included by --require option.
+
+    mg --require mycode.pl --exclude `&myfunc' pattern *
+
+Argument can be specified after function name with = character.  Next
+example is equivalent to the above example (works on 5.6 or later).
+
+    sub myfunc {
+        my($pattern) = @_;
+        my @matched;
+        my $re = qr/$pattern/m;
+        while (/$re/g) {
+            push(@matched, $-[0], $+[0]);
+        }
+            @matched;
+    }
+
+    mg --exclude `&myfunc=(?s)/\*.*?\*/' if *.c
+
+--exclude and --include option can be specified simultaneously and
+multiple times.
+
+=item --include I<pattern>
+
+Opposite for --exclude.  Next command searches string `if' only from C
+source comment.
+
+    mg --include `(?s)/\*.*?\*/' if *.c
+
+=item --require I<filename>
+
 Include arbitrary perl program.
-.\"------------------------------------------------------------
-.SH APPENDIX
-You may want to use \fImg\fP(1) instead of \fIgrep\fP(1)
-from GNU emacs.  In that case please add following program
-segment in your .emacs file.
-.ne 8
-.nf
 
-	(defun mg (command)
-	  "Run mg instead of grep."
-	  (interactive "sRun mg (with args): ")
-	  (require 'compile)
-	  (compile1 (concat "mg -n " command " /dev/null")
-		    "No more mg hits" "mg"))
+=back
 
-.fi
+
+=head1 B<APPENDIX>
+
+You may want to use L<mg(1)> instead of L<grep(1)> from GNU emacs.  In
+that case please add following program segment in your .emacs file.
+
+    (defun mg (command)
+      "Run mg instead of grep."
+      (interactive "sRun mg (with args): ")
+      (require 'compile)
+      (compile1 (concat "mg -n " command " /dev/null")
+    	    "No more mg hits" "mg"))
+
 If you are using version 19, use this.
-.ne 12
-.nf
 
-	(defun mg (command-args)
-	  "Run mg instead of grep."
-	  (require 'compile)
-	  (interactive
-	   (list (read-from-minibuffer "Run mg (like this): "
-				       "mg -n " nil nil 'grep-history)))
-	  (compile-internal (concat command-args " " null-filename)
-			    "No more mg hits" "mg"
-			    ;; Give it a simpler regexp to match.
-			    nil grep-regexp-alist))
+    (defun mg (command-args)
+      "Run mg instead of grep."
+      (require 'compile)
+      (interactive
+       (list (read-from-minibuffer "Run mg (like this): "
+    			       "mg -n " nil nil 'grep-history)))
+      (compile-internal (concat command-args " " null-filename)
+    		    "No more mg hits" "mg"
+    		    ;; Give it a simpler regexp to match.
+    		    nil grep-regexp-alist))
 
-.fi
-For more recent emacs like version 21, default `grep'
-function takes whole command line.
-.PP
-You have to visit uninterested line by (next-error) when
-surrounding lines are displayed by \-c or \-o option.  Use
-\-s option to avoid this.
-.\"------------------------------------------------------------
-.SH AUTHOR
-.nf
+For more recent emacs like version 21, default `grep' function takes
+whole command line.
+
+You have to visit uninterested line by (next-error) when surrounding
+lines are displayed by -c or -o option.  Use -s option to avoid this.
+
+
+=head1 B<AUTHOR>
+
 Kazumasa Utashiro
-.fi
-.\"------------------------------------------------------------
-.SH "SEE ALSO"
-grep(1), perl(1)
-.\"------------------------------------------------------------
-.SH BUGS
-.PP
-Option \-l does not work well with \-\-exclude and \-\-include.
-Option \-1 may not, either.
-.PP
-Perl5 look-behind expression can be used but it is treated
-as a bare regex, because variable length look-behind pattern
-is not allowed (yet).  Also since this special treatment is
-done by very naive mechanism, you can't use braces within
-look-behind pattern.  If you don't like it, please debug.
-.PP
-When using perl older than version 5.6, actual pattern is
-enclosed by parentheses, and it confuses the order of
-subexpressions if it contains back-references.  The order is
-fixed automatically but you may have some problem for certain
-patterns.  Use \-dm option to check the actual pattern for
-search when you doubt the behavior of this command.
-.PP
+
+
+=head1 B<SEE ALSO>
+
+L<grep(1)>, L<perl(1)>
+
+
+=head1 B<BUGS>
+
+Option -l does not work well with --exclude and --include.  Option -1
+may not, either.
+
+Perl5 look-behind expression can be used but it is treated as a bare
+regex, because variable length look-behind pattern is not allowed
+(yet).  Also since this special treatment is done by very naive
+mechanism, you can't use braces within look-behind pattern.  If you
+don't like it, please debug.
+
+When using perl older than version 5.6, actual pattern is enclosed by
+parentheses, and it confuses the order of subexpressions if it
+contains back-references.  The order is fixed automatically but you
+may have some problem for certain patterns.  Use -dm option to check
+the actual pattern for search when you doubt the behavior of this
+command.
+
 Hyphenation is not supported.
-.PP
-No capability to find words separated by nroff footer and
-header.
-.\"------------------------------------------------------------
-.SH LICENSE
-.PP
+
+No capability to find words separated by nroff footer and header.
+
+
+=head1 B<LICENSE>
+
 Copyright (c) 1991-2013 Kazumasa Utashiro
-.PP
+
 Use and redistribution for ANY PURPOSE are granted as long as all
-copyright notices are retained.  Redistribution with modification
-is allowed provided that you make your modified version obviously
-distinguishable from the original one.  THIS SOFTWARE IS PROVIDED
-BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES ARE
+copyright notices are retained.  Redistribution with modification is
+allowed provided that you make your modified version obviously
+distinguishable from the original one.  THIS SOFTWARE IS PROVIDED BY
+THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES ARE
 DISCLAIMED.
-.ex
