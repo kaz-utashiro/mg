@@ -5,7 +5,7 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.14 2013/10/28 10:33:25 utashiro Exp utashiro $;
+;; my $rcsid = q$Id: mg,v 5.0.1.15 2013/10/29 00:10:32 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
