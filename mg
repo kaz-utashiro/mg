@@ -5,7 +5,7 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.15 2013/10/29 00:10:32 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.16 2013/10/29 01:25:30 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -923,7 +923,7 @@ sub xsearch {
     ##
     my @result;
     my $required_count;
-    my $matched;
+    my %required;
     for (my $i = 0; $i < @xpattern; $i++) {
 	my($required, $regex) = @{$xpattern[$i]};
 	$required_count++ if $required;
@@ -931,12 +931,16 @@ sub xsearch {
 	while (/$regex/g) {
 	    push(@$rp, [$-[0], $+[0]]);
 	}
-	++$matched if @$rp;
+	if (@$rp) {
+	    $required{$required ? 'yes' : 'no'}++;
+	}
     }
 
-    return 0 if $matched == 0;
-
-    if ($matched == 1) {
+    ##
+    ## optimization for zero or single positive match
+    ##
+    return 0 if $required{yes} == 0;
+    if ($required{yes} == 1 and $required{no} == 0) {
 	map { push(@{$xp}, $_->[0], $_->[1] - $_->[0]) } map { @$_ } @result;
 	return 1;
     }
@@ -1145,8 +1149,6 @@ sub pattern_list {
     my($pattern) = @_;
     my @list;
 
-    # target string is stored in $_
-    die unless $] >= 5.006; # @- and @+ were incorporated in Perl 5.6
     my $re = qr/$pattern/m;
     while (/$re/g) {
 	push(@list, $-[0], $+[0]);
@@ -1471,7 +1473,7 @@ I<grep> because the matching is done across the line boundaries.
 For example, to find a sentence ``internet control message protocol''
 from many RFC texts, you can say
 
-    mg -i `internet control message protocol' *.txt
+    mg -i 'internet control message protocol' *.txt
 
 Match will occur for sequence of words `internet', `control', message'
 and `protocol' separated by any number of whitespace characters
@@ -1539,7 +1541,7 @@ Pattern string is treated as a colleciton of tokens separated by white
 space.  Each component will be searched independently, but only the
 line which contains all of them will be printed.  For example,
 
-    mg -xp `foo bar buz' ...
+    mg -xp 'foo bar buz' ...
 
 will print lines which contain all of `foo', `bar' and `buz'.  They
 can be found in any order and/or any place in the string.  So this
@@ -1552,8 +1554,8 @@ command find all of following texts.
 If you want to use OR syntax, prepend question (`?') sign on each
 token, or use regular expression in pattern:
 
-    mg -xp `foo bar buz ?yabba ?dabba ?doo'
-    mg -exp `foo bar buz yabba|dabba|doo'
+    mg -xp 'foo bar buz ?yabba ?dabba ?doo'
+    mg -exp 'foo bar buz yabba|dabba|doo'
 
 This command will print the line which contains all of `foo', `bar'
 and `buz' and one or more from `yabba', `dabba' or `doo'.  Note that
@@ -1568,8 +1570,8 @@ NOT operator can be specified by prefixing the token by minus (`-')
 sign.  Next example will show the line which contain both `foo' and
 bar' but none of `yabba' or `dabba' or `doo'.
 
-    mg -xp `foo bar -yabba -dabba -doo'
-    mg -exp `foo bar -yabba|dabba|doo'
+    mg -xp 'foo bar -yabba -dabba -doo'
+    mg -exp 'foo bar -yabba|dabba|doo'
 
 It is ok to set plus (`+') sign before positive AND token, but it has
 no effect.
@@ -1582,13 +1584,13 @@ Separate options are prepared to specify each component individually;
 --I<and>, --I<or> and --I<not>.  These options can be used multiple
 times.
 
-    mg --and `foo bar' --and buz --or `yabba dabba' --or doo ...
+    mg --and 'foo bar' --and buz --or 'yabba dabba' --or doo ...
 
 Long option --I<xp> is equivalent to the combination of -x and
 (optional) -p options.  Author decided to override single character
 option -x, to make it possible using in this way:
 
-    mg -oeiQxp `foo bar buz' ...
+    mg -oeiQxp 'foo bar buz' ...
 
 
 =head1 B<ENVIRONMENT and STARTUP FILE>
@@ -1603,7 +1605,7 @@ and `define'.  First argument of `option' directive is user defined
 option name.  The rest are processed by I<shellwords> routine defined
 by Text::ParseWords module.
 
-    option mh -RT -P `[0-9]*'
+    option mh -RT -P '[0-9]*'
 
 User definable option is specified by preceding option name by `-:'
 string.
@@ -1634,7 +1636,7 @@ For example, suppose that the following function is defined in your
         while (/.*\n/g) {
             push(@list, $-[0], $+[0]) if ++$i % 2;
         }
-            @list;
+        @list;
     }
 
 You can use next command to search pattern included in odd number
@@ -1726,7 +1728,7 @@ Use the pattern as a regular expression in L<perl(1)> but space is
 treated specially.  With this option, you can use I<mg> like
 L<egrep(1)> like this:
 
-    mg -e `foo bar|goo car|hoo dar' ...
+    mg -e 'foo bar|goo car|hoo dar' ...
 
 See L<perl(1)> for detail of regular expression.  Slash characters (/)
 in expression don't have to be escaped.
@@ -1747,7 +1749,7 @@ two examples are equivalent.
 
     mg -e ^Subject: `mg -le "^From: lwall" *`
 
-    mg -er `^From: lwall' ^Subject: *
+    mg -er '^From: lwall' ^Subject: *
 
 File will be swallowed at one time even if -W option is not supplied.
 
@@ -1762,7 +1764,7 @@ after two lines by ``-c 1,3'' option.
 Option -c0 displays matched string only.  Next example is almost
 equivalent to L<strings(1)> command with -oa option.
 
-    mg -NEc0 `[ \t\040-\176]{4,}' file
+    mg -NEc0 '[ \t\040-\176]{4,}' file
 
 =item -o 
 
@@ -1771,7 +1773,7 @@ delimited by two or more successive newline characters by default.  Be
 aware that an empty line is not paragraph delimiter if which contains
 space characters.  Example:
 
-    mg -nQo `setuid script' /usr/man/catl/perl.l
+    mg -nQo 'setuid script' /usr/man/catl/perl.l
 
     mg -o sockaddr /usr/include/sys/socket.h
 
@@ -1785,7 +1787,7 @@ mode.  The contents of string is evaluated as is inside double-quote
 not as a regular expression.  For example, you can get lines between
 troff macros like this:
 
-    mg -QoO "\n." `setuid script' /usr/man/manl/perl.l
+    mg -QoO "\n." 'setuid script' /usr/man/manl/perl.l
 
 =item -C I<chars>
 
@@ -1794,11 +1796,11 @@ than white space characters, continuous characters can be set by this
 options.  For example, next command finds a sentence even if it is
 quoted by `>' or `|' mark.
 
-    mg -C `>|' `ninja shogun fujiyama' `mhpath all`
+    mg -C '>|' 'ninja shogun fujiyama' `mhpath all`
 
 To search a pattern in C style comments:
 
-    mg -C `/*' `setuid scripts' perl.c
+    mg -C '/*' 'setuid scripts' perl.c
 
 Note that continuous characters don't have to be found only top
 of the string.  So ``foo bar'' matches a string ``foo>>bar'' on
@@ -1865,14 +1867,14 @@ specified in wildcard format same as shell and `|' character can be
 used for alternative in addition.  For example, you can find a string
 foobar'' from all C source files and makefiles like this:
 
-    mg -RP `*.c|[Mm]akefile' foobar /usr/src
+    mg -RP '*.c|[Mm]akefile' foobar /usr/src
 
 =item -V I<pattern>
 
 Exception file pattern.  This is a counterpart of -P.  Only files
 which DO NOT match the pattern will be searched.
 
-    mg -RV `*.[oas]' foobar /usr/src
+    mg -RV '*.[oas]' foobar /usr/src
 
 Note that the -V option is also applied to a directory name while -P
 option has an effect only for a file.  This means you can specify a
@@ -1940,19 +1942,14 @@ Convert newline character(s) found in matched string to specifed
 I<string>.  Using -J with -c0 option, you can collect searching
 sentence list in one per line form.  This is almost useless for
 English text but sometimes useful for Japanese text.  For example next
-command prints the list of KATAKANA words used in the Shift-JIS texts.
+command prints the list of KATAKANA words.
 
-    set kana='\203[\100-\226]|\201\133'
-    set p="($kana)($kana|\s)*"
-    mg -Ec0 -J `' "$p" files | sort | uniq -c
-
-Note that this command is confused when 2nd byte and 1st byte of next
-chararacter matches KATAKANA pattern.
+    mg -hEc0 -J '' '\p{utf8::InKatakana}+(?:\n+\p{utf8::InKatakana}+)*' files | sort | uniq -c
 
 Another example.  If you wonder how the word ``CRC'' is used in RFCs,
 you can do it like this:
 
-    mg -h -c0 -J' ` -ei `Cyclic Redundancy C\w+' rfc*.txt
+    mg -h -c0 -J ' ' -ei 'Cyclic Redundancy C\w+' rfc*.txt
 
 =item -0I<digits>
 
@@ -1996,16 +1993,17 @@ choose from 7bit-jis (jis), euc-jp or shiftjis (sjis).  Multiple code
 can be supplied using multiple option or combined code names with
 space or comma, then file encoding is guessed from those code sets.
 Use encoding name `guess' for automatic recognition from default code
-list which is euc-jp and 7bit-jis.  Following commands are equivalent.
+list which is euc-jp and 7bit-jis.  Following commands are all
+equivalent.
 
     % mg --icode=guess ...
     % mg --icode=euc-jp,7bit-jis ...
     % mg --icode=euc-jp --icode=7bit-jis ...
 
 Default code set are always included suspect code list.  If you have
-just one code adding to suspect list, put + mark before code name.
-Next example does automatic code detection from euc- kr, ascii, utf8
-and UTF^a16/32.
+just one code adding to suspect list, put + mark before the code name.
+Next example does automatic code detection from euc-kr, ascii, utf8
+and UTF-16/32.
 
     % mg --icode=+euc-kr ...
 
@@ -2022,18 +2020,18 @@ variable $_.  These expression and command list can be repeated.  If
 only one filter command is specified, it is applied to all files.
 Examples:
 
-    mg --if `dd conv=ascii' string spoiled_files
-    mg --if `/\.tar$/:tar tvf -' pattern *
+    mg --if 'dd conv=ascii' string spoiled_files
+    mg --if '/\.tar$/:tar tvf -' pattern *
 
 If the command doesn't accept standard input as processing data, you
 may be able to use special device:
 
-    mg -Qz `nm /dev/stdin' crypt /usr/lib/lib*.a
+    mg -Qz 'nm /dev/stdin' crypt /usr/lib/lib*.a
 
 Filters for compressed and gzipped file is set by default unless -Z
 option is given.  Default action is:
 
-    mg --if `s/\.Z$//:zcat:s/\.g?z$//:gunzip -c'
+    mg --if 's/\.Z$//:zcat:s/\.g?z$//:gunzip -c'
 
 =item --prep I<exp>
 
@@ -2047,7 +2045,7 @@ library and use the subroutine defined in it.
 RFC1342 MIME header encoding but current implementation
 handles only ISO-2022-JP encoding.  Example:
 
-    mg --prep `&mime' -00 From ~/Mail/inbox/*
+    mg --prep '&mime' -00 From ~/Mail/inbox/*
 
 Note that, this process is done just before a search for the
 output from input filter if --if option is specified.  So in the
@@ -2083,7 +2081,7 @@ Specify the pattern which should be excluded from searching.  For
 example, next command searches string `if' from C source, excluding
 comment part.
 
-    mg --exclude `(?s)/\*.*?\*/' if *.c
+    mg --exclude '(?s)/\*.*?\*/' if *.c
 
 Since this option is not implemented by preprocessor, line numbers are
 still correct and excluded part can be included in surrounding area by
@@ -2112,7 +2110,7 @@ example is equivalent to the above example (works on 5.6 or later).
             @matched;
     }
 
-    mg --exclude `&myfunc=(?s)/\*.*?\*/' if *.c
+    mg --exclude '&myfunc=(?s)/\*.*?\*/' if *.c
 
 --exclude and --include option can be specified simultaneously and
 multiple times.
@@ -2122,7 +2120,7 @@ multiple times.
 Opposite for --exclude.  Next command searches string `if' only from C
 source comment.
 
-    mg --include `(?s)/\*.*?\*/' if *.c
+    mg --include '(?s)/\*.*?\*/' if *.c
 
 =item --require I<filename>
 
