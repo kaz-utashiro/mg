@@ -5,7 +5,7 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.16 2013/10/29 01:25:30 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.17 2013/10/29 03:32:20 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -413,7 +413,7 @@ $post_c = $opt_o ? -1 : 1 unless defined($post_c);
 
 unless ($opt_W) {
     my %units = ('b' => 512, 'k' => 1024, 'm' => 1024 * 1024);
-    ($maxreadsize, $keepsize) = (1024 * 512, 1024 * 2);
+    ($maxreadsize, $keepsize) = (1024 * 1024 * 2, 1024 * 2);
     $opt_G =~ s/(\d+)(?i)([kbm])/$1 * $units{lc($2)}/ge;
     if ($opt_G =~ m|([\d]+)\D*([\d]+)?|i) {
 	$maxreadsize = $1+0 if $1;
@@ -531,7 +531,7 @@ sub open_nextfile {
 		next;
 	    }
 	    ($ent = -@ARGV) += unshift(@ARGV, &getdirent($file), $dirend) - 1;
-	    unshift(@dirstack, $file . ($file =~ m|/$| ? '' : '/'));
+	    unshift(@dirstack, $file . ($file =~ m'/$' ? '' : '/'));
 	    if ($db_d) {
 		&chash;
 		warn sprintf("%s> %s (%d entries).\n",
@@ -940,8 +940,8 @@ sub xsearch {
     ## optimization for zero or single positive match
     ##
     return 0 if $required{yes} == 0;
-    if ($required{yes} == 1 and $required{no} == 0) {
-	map { push(@{$xp}, $_->[0], $_->[1] - $_->[0]) } map { @$_ } @result;
+    if ($required_count == 1 and $required{yes} == 1 and $required{no} == 0) {
+	@{$xp} = map { $_->[0], $_->[1] - $_->[0] } map { @$_ } @result;
 	return 1;
     }
 
@@ -999,21 +999,16 @@ sub xsearch {
     ##
     ## build effective block list
     ##
-    my @effective;
-    my @mixed;
+    my @hit;
     for (my $bi = 0; $bi < @blocks; $bi++) {
-	next if $negative_hit[$bi];
-	if ($positive_hit[$bi] == $required_count) {
-	    push(@effective, @{$blocks[$bi]});
-	    for my $mp (@{$block_matched[$bi]}) {
-		push(@mixed, @{$mp});
-	    }
-	}
+	next if $negative_hit[$bi] or $positive_hit[$bi] != $required_count;
+	push(@hit, map { @{$_} } @{$block_matched[$bi]});
     }
-    @mixed = squeeze(sort {$a->[0]<=>$b->[0] || $a->[1]<=>$b->[1]} @mixed);
-    for my $mp (@mixed) {
-	push(@{$xp}, $mp->[0], $mp->[1] - $mp->[0]);
-    }
+
+    @{$xp} = map({ $_->[0], $_->[1] - $_->[0] }
+		 squeeze(sort {$a->[0]<=>$b->[0] || $a->[1]<=>$b->[1]}
+			 @hit));
+
     1;
 }
 sub squeeze {
@@ -1108,7 +1103,7 @@ sub sose {
     use Term::ANSIColor qw(:constants);
     my($so, $se);
     $so .= REVERSE if $opt_Q;
-    $so .= RED if $opt_color;
+    $so .= RED . BOLD if $opt_color;
     $se = RESET if $so;
     ($so, $se, $se, $so);
 }
@@ -1521,13 +1516,13 @@ contents, but it is not supported yet.
 
 B<[BUFFERING POLICY]> I<Mg> reads some amount of data at once, and the
 last portion of the chunk will be searched again with next chunk of
-data.  Default size of data chunk is 512k.  Search-again-data size is
-2k for both.  So if the matched segment size is more than 2k bytes, it
+data.  Default size of data chunk is 2M.  Search-again-data size is 2k
+for both.  So if the matched segment size is more than 2k bytes, it
 may be truncated.  This truncation happens only when the file size is
-more than data chunk size, of course.  You can use -W option to read
+bigger than data chunk size, of course.  You can use -W option to read
 whole file contents at once.  But it may slow down the speed of
 execution for large file, depending on the architecture and
-configuration of the system.  Maximum read and search again size can
+configuration of your system.  Maximum read and search again size can
 be specified by -G option.
 
 
@@ -1944,7 +1939,7 @@ sentence list in one per line form.  This is almost useless for
 English text but sometimes useful for Japanese text.  For example next
 command prints the list of KATAKANA words.
 
-    mg -hEc0 -J '' '\p{utf8::InKatakana}+(?:\n+\p{utf8::InKatakana}+)*' files | sort | uniq -c
+    mg -hEc0 -J '' '\p{utf8::InKatakana}+(?:\n+\p{utf8::InKatakana}+)*' ...
 
 Another example.  If you wonder how the word ``CRC'' is used in RFCs,
 you can do it like this:
@@ -1966,7 +1961,7 @@ Slurp whole file at once.
 =item -G I<maxreadsize>[,I<keepsize>]
 
 Specify maximum read size and keep buffer size for next read.  Default
-values for these sizes are 512k and 2k bytes.  I<Mg> tries to read a
+values for these sizes are 2M and 2k bytes.  I<Mg> tries to read a
 file up to maximum read size at a same time.  Last part of the buffer,
 specified by keep buffer size, is not thrown away but will be used as
 a subject for search with next buffer.  In arguments, you can use B,
