@@ -5,7 +5,7 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.17 2013/10/29 03:32:20 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.18 2013/10/30 04:00:06 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -59,7 +59,6 @@ my @opts;
 	'C:chars:continuous characters',
 	'u::underline matched string',
 	'b::make bold (print twice) matched string',
-	'Q::stand-out matched string',
 	'Y::yield to -Q option even if stdout is not a terminal',
 	'a::print whole file (no filename and line number)',
 	's::output filename and line number separately',
@@ -83,10 +82,12 @@ my @opts;
 	'G:#[,#]:maxreadsize and keepsize',
 	'1::print first match only',
 	'd:flags:display info (f:file d:dir c:count m:misc s:stat)',
-	'-:IYU:',
+	'-:IU:',
 	'I::ignore error',
 	'U::show unused opts',
 	'man::show manual page',
+	'color:when:use termninal color (auto, always, never)',
+	'colormode:mode:r(ed), g(reen), b(lue), R(everse), B(old), U(nderline)',
 	'icode:@name:specify file encoding (repeatable)',
 	'ocode:name:specify output encoding',
 	'if:filter:set filter command',
@@ -106,18 +107,24 @@ my @opts;
 	'or:@pattern:OR patterns (repeatable)',
 	'not:@pattern:NOT patterns (repeatable)',
 	'xp:pattern:extended pattern',
-	'color::use termninal color for emphasize',
 	'block::experimental block mode',
 	'mod:module:experimental include module',
 );
+
 my @optspec = &MkoptsLong(@opts);
-my @opt_file;
-my @opt_glob;
-my @opt_icode;
-my @opt_exclude;
-my @opt_include;
-my @opt_and, @opt_or;
-my @opt_color;
+our @opt_file;
+our @opt_glob;
+our @opt_icode;
+our @opt_exclude;
+our @opt_include;
+our @opt_and, @opt_or;
+our $opt_color = 'auto';
+our $opt_colormode = 'rD';
+
+
+# global variables
+our $rs;	# record separator
+
 
 binmode STDERR, ":encoding(utf8)";
 
@@ -179,6 +186,7 @@ foreach (@ARGV) {
 my @SAVEDARGV = @ARGV;
 Getopt::Long::Configure("bundling");
 GetOptions(@optspec) || &usage;
+
 sub usage {
     select STDERR;
 
@@ -288,7 +296,7 @@ sub mkpat {
 		(.)			# normal characters
 	}{
 	    if ($1) {
-		$opt_E ? $1 : $1 . "\\s*";
+		$1;
 	    } else {
 		length(Encode::encode_utf8($2)) > 1 ? &mb($2) : &asc($2)
 	    }
@@ -377,9 +385,8 @@ sub match {
     m/$pattern/;
 }
 
-if ($opt_Y || -t STDOUT) {
-    ($ql, $qr, $qd, $qe) = &sose;
-}
+($ql, $qr, $qd, $qe) = &sose;
+
 $nlqsubs = $opt_n ? qq#s/\\n/"$qd\\n\$file".++\$line.":$qe"/ge#
 		  : "s/\\n/$qd\\n\$file$qe/g";
 $nlqsubs = q|s/\\n/++$line;"| . $opt_J . q|"/ge| if defined $opt_J;
@@ -394,12 +401,12 @@ if ($effect = $opt_b || $opt_u) {
     @ul[1,2] = ("_\cH", "__\cH\cH");
     @bs[1,2] = ("\cH", "\cH\cH");
     &eval('sub effect {
-	$_[$[] =~ s/([\\200-\\337]?.)/' .
+	$_[0] =~ s/([\\200-\\337]?.)/' .
 	'$ul[length($1)].' x $opt_u . '$1.$bs[length($1)].' x $opt_b . '$1/ge;
     }'); 
 }
 
-$opt_O = $opt_o ? '\n\n' : '\n' unless defined($opt_O);
+$opt_O = $opt_o ? '\n\n' : '\n' unless defined $opt_O;
 $opt_O =~ s/"/\\"/g;
 &eval("\$rs = \"$opt_O\";");	# record separator
 grep(eval "warn \"opt_$_=/\$opt_$_/\n\" if \$opt_$_;", split(//, 'pvPVCO'))
@@ -918,6 +925,8 @@ sub xsearch {
     local(*_) = shift;
     my($xp) = @_;
 
+    my @blocks;
+
     ##
     ## build match result list
     ##
@@ -928,8 +937,9 @@ sub xsearch {
 	my($required, $regex) = @{$xpattern[$i]};
 	$required_count++ if $required;
 	my $rp = $result[$i] = [];
-	while (/$regex/g) {
+	while ($_ =~ /$regex/g) {
 	    push(@$rp, [$-[0], $+[0]]);
+	    push(@blocks, [$-[0], $+[0]]);
 	}
 	if (@$rp) {
 	    $required{$required ? 'yes' : 'no'}++;
@@ -946,20 +956,17 @@ sub xsearch {
     }
 
     ##
-    ## build block list
+    ## build block list from matched range, then sort and uniq
+    ## select wider range if they begin at same position
     ##
-    my @blocks;
-    my $re;
-    use vars qw{$rs $opt_o};
-    if (defined $rs) {
-	$re = qr/(?ms).*?(?:$rs|\Z)/;
-    } elsif ($opt_o) {
-	$re = qr/(?ms).*?(?:\n\n+|\Z)/;
-    } else {
-	$re = qr/(?ms).*?(?:\n|\Z)/;
-    }
-    while (m/$re/g) {
-	push(@blocks, [$-[0], $+[0]]);
+    if (@blocks) {
+    	my $min;
+	my $textp = \$_;
+    	@blocks =
+	    grep({$_->[0] > $min and $min = $_->[0]}
+		 sort({$a->[0] <=> $b->[0] || $b->[1] <=> $a->[1]}
+		      map({[find_block($textp, $rs, $_->[0], $_->[1])]}
+			  @blocks)));
     }
 
     ##
@@ -1025,6 +1032,20 @@ sub squeeze {
 	}
     }
     @out;
+}
+sub find_block {
+    use strict;
+    local(*_) = shift;		# text
+    my($delim) = shift;		# delimiter
+    my($from, $to) = @_;	# range
+
+    my($begin, $end);
+    $begin = rindex($_, $delim, $from) + length($delim);
+    $begin = 0 if $begin < 0;
+    $end = index($_, $delim, $to) + length($delim);
+    $end = length($_) if $end < 0;
+
+    ($begin, $end);
 }
 ######################################################################
 sub warn {
@@ -1102,9 +1123,26 @@ sub wildcard {
 sub sose {
     use Term::ANSIColor qw(:constants);
     my($so, $se);
-    $so .= REVERSE if $opt_Q;
-    $so .= RED . BOLD if $opt_color;
-    $se = RESET if $so;
+    if (($opt_color eq 'always') or
+	($opt_color eq 'auto' and -t STDOUT)) {
+	if ($opt_colormode =~ /,/) {
+	    ($so, $se) = split(/,/, $opt_colormode, 2);
+	} else {
+	    map {
+		$so .= UNDERLINE if /U/;
+		$so .= REVERSE   if /S/;
+		$so .= BOLD      if /D/;
+		$so .= RED       if /r/; $so .= ON_RED       if /R/;
+		$so .= GREEN     if /g/; $so .= ON_GREEN     if /G/;
+		$so .= BLUE      if /b/; $so .= ON_BLUE      if /B/;
+		$so .= CYAN      if /c/; $so .= ON_CYAN      if /C/;
+		$so .= MAGENTA   if /m/; $so .= ON_MAGENTA   if /M/;
+		$so .= YELLOW    if /y/; $so .= ON_YELLOW    if /Y/;
+		$so .= WHITE     if /w/; $so .= ON_WHITE     if /W/;
+	    } $opt_colormode if $opt_colormode;
+	    $se = RESET if $so;
+	}
+    }
     ($so, $se, $se, $so);
 }
 sub truncate {			# emulate $/.
@@ -1248,6 +1286,8 @@ sub MkoptsLong {
 	my($opt, $arg, $desc) = split(':', $_, 3);
 	if ($arg eq '') {
 	    push(@o, $opt);
+	} elsif ($arg eq '!') {
+	    push(@o, "$opt!");
 	} elsif ($arg =~ s/^\?//) {
 	    push(@o, "$opt:s");
 	} elsif ($arg =~ s/^\@//) {
@@ -1811,19 +1851,6 @@ precede each character by ``_^H''.
 Make bold matched string.  Makes a matched string overstruck
 like ``f^Hfo^Hoo^Ho''.
 
-=item -Q 
-
-Use a stand-out feature of the terminal to quote the matched
-string.  This option is ignored when the standard output is not
-a terminal.  -Q is useful for long line.  Try
-
-    echo $path | mg -Q mh
-
-=item --color
-
-Use terminal color capability to emphasize the matched text.  It
-can be combined with option -Q.
-
 =item -a 
 
 Print all contents of the file.  This option makes sense only if
@@ -1979,6 +2006,18 @@ option.
 =item --man 
 
 Show manual page.
+
+=item --color I<auto>|I<always>|I<never>
+
+Use terminal color capability to emphasize the matched text.  Default
+is `auto': effective when STDOUT is termnial, not otherwise.  Option
+value `always' and `never' will work as expected.
+
+=item --colormode I<rgbUBR>
+
+Specify color mode.  Use combination string from r(ed), g(reen),
+b(lue), U(nderline), (bol)D, S(tandout).  Default is rD: red and
+Bold.
 
 =item --icode I<code>
 
