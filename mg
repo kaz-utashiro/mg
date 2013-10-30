@@ -5,7 +5,7 @@
 ## Copyright (c) 1991-2013 Kazumasa Utashiro
 ##
 ## Original: Mar 29 1991
-;; my $rcsid = q$Id: mg,v 5.0.1.18 2013/10/30 04:00:06 utashiro Exp $;
+;; my $rcsid = q$Id: mg,v 5.0.1.19 2013/10/30 09:44:54 utashiro Exp $;
 ##
 ## EXAMPLES:
 ##	% mg 'control message protocol' rfc*.txt.Z	# line across search
@@ -120,7 +120,6 @@ our @opt_include;
 our @opt_and, @opt_or;
 our $opt_color = 'auto';
 our $opt_colormode = 'rD';
-
 
 # global variables
 our $rs;	# record separator
@@ -939,7 +938,7 @@ sub xsearch {
 	my $rp = $result[$i] = [];
 	while ($_ =~ /$regex/g) {
 	    push(@$rp, [$-[0], $+[0]]);
-	    push(@blocks, [$-[0], $+[0]]);
+	    push(@blocks, [$-[0], $+[0]]) if $required;
 	}
 	if (@$rp) {
 	    $required{$required ? 'yes' : 'no'}++;
@@ -957,15 +956,15 @@ sub xsearch {
 
     ##
     ## build block list from matched range, then sort and uniq
-    ## select wider range if they begin at same position
+    ## select wider range if they begin at same the position
     ##
     if (@blocks) {
-    	my $min;
+	my $min;
 	my $textp = \$_;
     	@blocks =
 	    grep({$_->[0] > $min and $min = $_->[0]}
 		 sort({$a->[0] <=> $b->[0] || $b->[1] <=> $a->[1]}
-		      map({[find_block($textp, $rs, $_->[0], $_->[1])]}
+		      map({[blocknize($textp, $rs, $_->[0], $_->[1])]}
 			  @blocks)));
     }
 
@@ -1033,7 +1032,7 @@ sub squeeze {
     }
     @out;
 }
-sub find_block {
+sub blocknize {
     use strict;
     local(*_) = shift;		# text
     my($delim) = shift;		# delimiter
