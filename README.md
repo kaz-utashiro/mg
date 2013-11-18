@@ -1,4 +1,5 @@
 mg
 ==
 
-mg is obsolete now.  use 'greple' instead.
+mg is obsolete now.
+use https://github.com/kaz-utashiro/greple instead.
