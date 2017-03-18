@@ -1497,6 +1497,13 @@ mg - multi-line grep
 B<mg> [ B<options> ] I<pattern> [ I<file> ]
 
 
+=head1 B<STATUS>
+
+This command is no longer maintained.  Please use L<greple>, which is
+an official successor of L<mg>.
+
+See <github|http://kaz-utashiro.github.io/greple/>.
+
 =head1 B<DESCRIPTION>
 
 I<Mg> searches the specified pattern from files or standard input and
