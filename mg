@@ -134,7 +134,7 @@ binmode STDERR, ":encoding(utf8)";
 my %user_option;
 sub set_option {
     my $optname = shift;
-    if (defined @{$user_option{$optname}}) {
+    if (@{$user_option{$optname}}) {
 	push(@{$user_option{$optname}}, @_);
     } else {
 	$user_option{$optname} = \@_;
@@ -347,11 +347,11 @@ for my $p (@opt_and) {
     $p = &mkpat($p);
     push(@xpattern, [1, qr/$p/]);
 }
-if (defined @opt_or) {
+if (@opt_or) {
     my $p = join('|', map { &mkpat($_) } @opt_or);
     push(@xpattern, [1, qr/$p/]);
 }
-if (defined @opt_not) {
+if (@opt_not) {
     my $p = join('|', map { &mkpat($_) } @opt_not);
     push(@xpattern, [0, qr/$p/]);
 }
